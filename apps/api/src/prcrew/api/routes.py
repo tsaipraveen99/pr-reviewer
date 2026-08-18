@@ -60,4 +60,17 @@ def make_router(run_manager: RunManager, github, limiter, limit_str: str) -> API
                 # loop re-reads run.events from idx, so nothing is skipped
         return EventSourceResponse(gen())
 
+    @router.get("/showcases")
+    async def list_showcases_route():
+        from prcrew.showcases.store import list_showcases
+        return list_showcases()
+
+    @router.get("/showcases/{slug}")
+    async def get_showcase_route(slug: str):
+        from prcrew.showcases.store import get_showcase
+        data = get_showcase(slug)
+        if data is None:
+            raise HTTPException(404, "Unknown showcase")
+        return data
+
     return router
