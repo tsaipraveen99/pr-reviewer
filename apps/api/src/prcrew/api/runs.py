@@ -2,7 +2,6 @@ import asyncio
 import logging
 import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 
 from prcrew.api.review_store import ReviewStore
 from prcrew.models import PRContext
@@ -19,7 +18,6 @@ MAX_RUNS = 200
 class Run:
     id: str
     pr_url: str = ""
-    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     status: str = "running"
     events: list[dict] = field(default_factory=list)
     # Broadcast primitive: every emit appends to `events` then notify_all()s,
