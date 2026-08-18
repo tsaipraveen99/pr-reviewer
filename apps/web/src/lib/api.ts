@@ -17,7 +17,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     let message = res.statusText;
     try {
       const body = await res.json();
-      if (typeof body?.detail === "string") message = body.detail;
+      // FastAPI errors use {"detail": ...}; slowapi's 429 handler uses {"error": ...}
+      const detail = body?.detail ?? body?.error;
+      if (typeof detail === "string") message = detail;
     } catch {
       // non-JSON error body; fall back to statusText
     }

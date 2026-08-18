@@ -42,4 +42,14 @@ describe("reduce", () => {
     expect(v.error).toBe("boom");
     expect(v.done).toBe(true);
   });
+
+  it("ignores events naming an unknown node instead of crashing", () => {
+    const base = initialView();
+    expect(reduce(base, ev({ type: "node_started", node: "mystery" }))).toEqual(base);
+    expect(reduce(base, ev({ type: "node_finished", node: "mystery" }))).toEqual(base);
+    expect(reduce(base, ev({ type: "node_failed", node: "mystery", error: "x" }))).toEqual(base);
+    expect(reduce(base, ev({ type: "finding", node: "mystery",
+      finding: { agent: "mystery", file: "x.py", line: 1,
+                 severity: "minor", claim: "c", evidence: "e" } }))).toEqual(base);
+  });
 });

@@ -11,10 +11,14 @@ export function initialView(): RunView {
 }
 
 export function reduce(view: RunView, ev: StreamEvent): RunView {
+  // Events naming an unknown node are ignored so a newer backend emitting an
+  // unrecognized node name can never crash the reducer.
   const setAgent = (node: string, patch: object): RunView =>
     node === "verifier"
       ? { ...view, verifier: { ...view.verifier, ...patch } }
-      : { ...view, agents: { ...view.agents, [node]: { ...view.agents[node], ...patch } } };
+      : node in view.agents
+        ? { ...view, agents: { ...view.agents, [node]: { ...view.agents[node], ...patch } } }
+        : view;
 
   switch (ev.type) {
     case "node_started": return setAgent(ev.node, { status: "running" });
@@ -22,6 +26,7 @@ export function reduce(view: RunView, ev: StreamEvent): RunView {
     case "node_failed": return setAgent(ev.node, { status: "failed" });
     case "finding": {
       const agent = view.agents[ev.node];
+      if (!agent) return view;
       return { ...view, agents: { ...view.agents,
         [ev.node]: { ...agent, findings: [...agent.findings, ev.finding] } } };
     }
