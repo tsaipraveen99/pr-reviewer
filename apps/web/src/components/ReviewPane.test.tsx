@@ -41,4 +41,18 @@ describe("ReviewPane", () => {
     expect(writeText).toHaveBeenCalledWith(`${location.origin}/#r=abc123`);
     expect(await screen.findByRole("button", { name: "Share" }, { timeout: 2000 })).toBeInTheDocument();
   });
+
+  it("shows the Copy as PR comment button whenever a review exists, even mid-run", () => {
+    render(<ReviewPane view={{ ...DONE_VIEW, done: false }} runId={null} />);
+    expect(screen.getByRole("button", { name: "Copy as PR comment" })).toBeInTheDocument();
+  });
+
+  it("copies the review plus attribution footer as a PR comment", async () => {
+    render(<ReviewPane view={DONE_VIEW} runId={null} />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy as PR comment" }));
+    await screen.findByRole("button", { name: "Copied ✓" });
+    const [text] = writeText.mock.calls[0];
+    expect(text).toContain("## R");
+    expect(text).toContain("Reviewed by [pr-reviewer](https://pr-review-crew.vercel.app)");
+  });
 });

@@ -2,18 +2,24 @@ import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { RunView } from "../lib/types";
 
-function ShareButton({ runId }: { runId: string }) {
+const COMMENT_FOOTER =
+  "\n\n---\n*Reviewed by [pr-reviewer](https://pr-review-crew.vercel.app) " +
+  "— a multi-agent LangGraph review crew.*";
+
+/** Copies whatever `getText()` returns on click, showing a transient
+ * "Copied ✓" label; shared by the Share and Copy-as-PR-comment buttons. */
+function CopyButton({ label, getText }: { label: string; getText: () => string }) {
   const [copied, setCopied] = useState(false);
 
-  const share = async () => {
-    await navigator.clipboard.writeText(`${location.origin}/#r=${runId}`);
+  const copy = async () => {
+    await navigator.clipboard.writeText(getText());
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
 
   return (
-    <button type="button" onClick={share} className="mac-button-secondary">
-      {copied ? "Copied ✓" : "Share"}
+    <button type="button" onClick={copy} className="mac-button-secondary">
+      {copied ? "Copied ✓" : label}
     </button>
   );
 }
@@ -36,7 +42,13 @@ export function ReviewPane({ view, runId }: ReviewPaneProps) {
         <div>
           <div className="mb-2 flex items-center justify-between gap-2">
             <p className="eyebrow">Verdict</p>
-            {canShare && <ShareButton runId={runId as string} />}
+            <div className="flex items-center gap-2">
+              <CopyButton label="Copy as PR comment"
+                getText={() => `${view.review}${COMMENT_FOOTER}`} />
+              {canShare && (
+                <CopyButton label="Share" getText={() => `${location.origin}/#r=${runId}`} />
+              )}
+            </div>
           </div>
           <div className="markdown">
             <ReactMarkdown>{view.review}</ReactMarkdown>
