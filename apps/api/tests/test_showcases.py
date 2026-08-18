@@ -1,5 +1,7 @@
 import json
+
 from fastapi.testclient import TestClient
+
 from prcrew.api.app import create_app
 from prcrew.showcases import store
 
