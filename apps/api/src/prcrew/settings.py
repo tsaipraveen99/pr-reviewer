@@ -13,3 +13,7 @@ class Settings:
     daily_rate_limit: str = field(default_factory=lambda: os.environ.get("DAILY_RATE_LIMIT", "5/day"))
     cors_origins: str = field(default_factory=lambda: os.environ.get("CORS_ORIGINS", "*"))
     run_db_path: str = field(default_factory=lambda: os.environ.get("RUN_DB_PATH", "./data/runs.db"))
+    database_url: str = field(default_factory=lambda: os.environ.get(
+        "DATABASE_URL", "sqlite+aiosqlite:///./data/app.db"))
+    redis_url: str = field(default_factory=lambda: os.environ.get(
+        "REDIS_URL", "redis://localhost:6379/0"))
