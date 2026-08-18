@@ -23,6 +23,7 @@ def changed_ranges(diff: str) -> list[ChangedFile]:
     files: list[ChangedFile] = []
     path: str | None = None
     ranges: list[tuple[int, int]] = []
+    prev_line: str | None = None
 
     def flush() -> None:
         nonlocal path, ranges
@@ -32,9 +33,10 @@ def changed_ranges(diff: str) -> list[ChangedFile]:
 
     for line in diff.splitlines():
         m = _FILE_RE.match(line)
-        if m:
+        if m and prev_line and prev_line.startswith("--- "):
             flush()
             path = m.group(1)  # None for /dev/null
+            prev_line = line
             continue
         m = _HUNK_RE.match(line)
         if m and path is not None:
@@ -42,12 +44,15 @@ def changed_ranges(diff: str) -> list[ChangedFile]:
             count = int(m.group(2)) if m.group(2) is not None else 1
             if count > 0:
                 ranges.append((start, start + count - 1))
+        prev_line = line
     flush()
     return files
 
 
 def line_is_changed(files: list[ChangedFile], path: str, line: int) -> bool:
-    for f in files:
-        if f.path == path:
-            return any(start <= line <= end for start, end in f.ranges)
-    return False
+    return any(
+        start <= line <= end
+        for f in files
+        if f.path == path
+        for start, end in f.ranges
+    )

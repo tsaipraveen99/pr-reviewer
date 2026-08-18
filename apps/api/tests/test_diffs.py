@@ -1,4 +1,4 @@
-from prcrew.diffs import ChangedFile, changed_ranges, line_is_changed  # noqa: F401
+from prcrew.diffs import ChangedFile, changed_ranges, line_is_changed
 
 DIFF = """\
 diff --git a/src/app.py b/src/app.py
@@ -51,3 +51,26 @@ def test_line_is_changed():
 
 def test_zero_length_new_hunk_and_garbage_lines_ignored():
     assert changed_ranges("not a diff at all\n") == []
+
+
+def test_added_content_line_that_looks_like_a_header_is_not_a_file_boundary():
+    d = """diff --git a/real.py b/real.py
+--- a/real.py
++++ b/real.py
+@@ -1,2 +1,3 @@
+ context
++++ b/injected.py
+ more context
+@@ -50,2 +52,3 @@
+ context
++tail line
+ context
+"""
+    files = changed_ranges(d)
+    assert [f.path for f in files] == ["real.py"]
+    assert line_is_changed(files, "real.py", 53)
+
+
+def test_line_is_changed_scans_all_entries_for_a_path():
+    files = [ChangedFile("x.py", [(1, 2)]), ChangedFile("x.py", [(100, 101)])]
+    assert line_is_changed(files, "x.py", 101)
