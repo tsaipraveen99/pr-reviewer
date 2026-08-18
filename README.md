@@ -108,3 +108,4 @@ npm test
 ```
 
 CI (`.github/workflows/ci.yml`) runs `ruff check` + `pytest` for the backend and `tsc -b --noEmit` + `vitest` for the frontend on every push and PR to `main`.
+
