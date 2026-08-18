@@ -63,7 +63,7 @@ def _read_snippet(root: Path, path: str, start_line: int, end_line: int) -> str 
     file_path = root / path
     if not file_path.is_file():
         return None
-    lines = file_path.read_text().splitlines()
+    lines = file_path.read_text(encoding="utf-8", errors="replace").splitlines()
     snippet_lines = lines[start_line - 1 : end_line][:_SNIPPET_LINE_CAP]
     return "\n".join(snippet_lines)
 
@@ -83,14 +83,14 @@ def context_slice(
       - changed: non-module Symbols in the changed files that overlap any of
         that file's given ranges (an empty range list means the whole file --
         every non-module Symbol in it).
-      - caller: src Symbols of `call` Edges whose dst is a changed Symbol.
-      - callee: resolved dst Symbols of `call` Edges whose src is a changed
+      - caller: src Symbols of `calls` Edges whose dst is a changed Symbol.
+      - callee: resolved dst Symbols of `calls` Edges whose src is a changed
         Symbol (unresolved calls, dst_symbol_id IS NULL, contribute nothing).
-      - importer: src Symbols (always module Symbols) of `import` Edges whose
+      - importer: src Symbols (always module Symbols) of `imports` Edges whose
         dst is any Symbol -- module or def -- belonging to a changed file.
 
-    Entries are ordered by (role priority, path, start_line). `max_symbols`
-    truncates that ordered list. Each surviving entry's snippet is read from
+    Entries are ordered by (role priority, path, start_line, qualified_name).
+    `max_symbols` truncates that ordered list. Each surviving entry's snippet is read from
     `root` by line range and capped at 60 lines; a symbol whose file is
     missing on disk is dropped. If the total snippet length still exceeds
     `max_chars`, whole entries are dropped from the end (lowest priority
@@ -105,7 +105,8 @@ def context_slice(
         max_chars: Maximum total snippet characters across all entries.
 
     Returns:
-        A Slice with entries ordered by (role priority, path, start_line).
+        A Slice with entries ordered by (role priority, path, start_line,
+        qualified_name).
     """
     with session_factory() as session:
         changed_symbol_ids: set[int] = set()
@@ -142,7 +143,7 @@ def context_slice(
                 for sid in session.execute(
                     select(Edge.src_symbol_id).where(
                         Edge.repo_id == repo_id,
-                        Edge.kind == "call",
+                        Edge.kind == "calls",
                         Edge.dst_symbol_id.in_(changed_symbol_ids),
                     )
                 ).scalars()
@@ -156,7 +157,7 @@ def context_slice(
                 for sid in session.execute(
                     select(Edge.dst_symbol_id).where(
                         Edge.repo_id == repo_id,
-                        Edge.kind == "call",
+                        Edge.kind == "calls",
                         Edge.src_symbol_id.in_(changed_symbol_ids),
                     )
                 ).scalars()
@@ -170,7 +171,7 @@ def context_slice(
                 for sid in session.execute(
                     select(Edge.src_symbol_id).where(
                         Edge.repo_id == repo_id,
-                        Edge.kind == "import",
+                        Edge.kind == "imports",
                         Edge.dst_symbol_id.in_(changed_file_symbol_ids),
                     )
                 ).scalars()
@@ -209,6 +210,11 @@ def context_slice(
                 _ROLE_PRIORITY[role_by_id[sym.id]],
                 files_by_id[sym.file_id].path,
                 sym.start_line,
+                # Final tiebreak: without it, entries tied on the first three
+                # keys fall back to whatever order the DB happened to return
+                # them in, which sqlite tends to preserve as insertion order
+                # but Postgres makes no such guarantee for.
+                sym.qualified_name,
             ),
         )
 

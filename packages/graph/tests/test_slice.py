@@ -183,7 +183,7 @@ class TestDedupPriority:
                     src_symbol_id=other_sym.id,
                     dst_symbol_id=changed_sym.id,
                     dst_qualified_name="x.changed",
-                    kind="call",
+                    kind="calls",
                 )
             )
             # changed -> other (makes `other` also a callee of the changed symbol)
@@ -193,7 +193,7 @@ class TestDedupPriority:
                     src_symbol_id=changed_sym.id,
                     dst_symbol_id=other_sym.id,
                     dst_qualified_name="x.other",
-                    kind="call",
+                    kind="calls",
                 )
             )
             session.commit()
@@ -208,6 +208,63 @@ class TestDedupPriority:
         other_entries = [e for e in result.entries if e.qualified_name == "x.other"]
         assert len(other_entries) == 1
         assert other_entries[0].role == "caller"
+
+
+class TestDeterministicOrdering:
+    """M7: two entries tied on (role priority, path, start_line) must still
+    sort in a fixed order -- qualified_name breaks the tie -- so results
+    don't depend on incidental row-return order (which Postgres doesn't
+    guarantee the way sqlite's rowid-ish default often does).
+    """
+
+    def test_same_role_path_and_start_line_breaks_tie_on_qualified_name(self, tmp_path):
+        root = tmp_path / "repo"
+        root.mkdir()
+        (root / "x.py").write_text("pass\n")
+
+        session_factory = _make_bare_session_factory(tmp_path)
+        now = datetime.now(UTC)
+        with session_factory() as session:
+            file_row = File(
+                repo_id=1, path="x.py", lang="python", content_hash="h", parsed_at=now
+            )
+            session.add(file_row)
+            session.flush()
+
+            # Inserted "zebra" first (lower id) and "apple" second (higher
+            # id), both same start_line -- so a sort keyed only on (role,
+            # path, start_line) would preserve this insertion order (zebra
+            # before apple) via Python's stable sort. The qualified_name
+            # tiebreak must force alphabetical order instead.
+            zebra = Symbol(
+                repo_id=1,
+                file_id=file_row.id,
+                name="zebra",
+                qualified_name="x.zebra",
+                kind="function",
+                start_line=1,
+                end_line=1,
+            )
+            apple = Symbol(
+                repo_id=1,
+                file_id=file_row.id,
+                name="apple",
+                qualified_name="x.apple",
+                kind="function",
+                start_line=1,
+                end_line=1,
+            )
+            session.add_all([zebra, apple])
+            session.commit()
+
+        result = context_slice(
+            session_factory,
+            repo_id=1,
+            root=root,
+            changed=[("x.py", [(1, 1)])],
+        )
+
+        assert [e.qualified_name for e in result.entries] == ["x.apple", "x.zebra"]
 
 
 class TestCapsAndSnippetHandling:
@@ -312,3 +369,50 @@ class TestCapsAndSnippetHandling:
         )
 
         assert [e.role for e in trimmed.entries] == ["changed", "caller"]
+
+    def test_non_utf8_file_snippet_is_read_with_replacement_not_a_crash(self, tmp_path):
+        """A file on disk that isn't valid UTF-8 (e.g. latin-1 source the
+        indexer indexed at the bytes level) must not crash slice-time reads;
+        undecodable bytes are replaced rather than raising UnicodeDecodeError.
+        """
+        root = tmp_path / "repo"
+        root.mkdir()
+        # latin-1 "naïve" -- 0xEF is not valid standalone UTF-8.
+        (root / "naive.py").write_bytes(
+            b'def naive():\n    x = "na\xefve"\n    return x\n'
+        )
+
+        session_factory = _make_bare_session_factory(tmp_path)
+        now = datetime.now(UTC)
+        with session_factory() as session:
+            file_row = File(
+                repo_id=1,
+                path="naive.py",
+                lang="python",
+                content_hash="h",
+                parsed_at=now,
+            )
+            session.add(file_row)
+            session.flush()
+            sym = Symbol(
+                repo_id=1,
+                file_id=file_row.id,
+                name="naive",
+                qualified_name="naive.naive",
+                kind="function",
+                start_line=1,
+                end_line=3,
+            )
+            session.add(sym)
+            session.commit()
+
+        result = context_slice(
+            session_factory,
+            repo_id=1,
+            root=root,
+            changed=[("naive.py", [])],
+        )
+
+        assert len(result.entries) == 1
+        assert "def naive():" in result.entries[0].snippet
+        assert "�" in result.entries[0].snippet
