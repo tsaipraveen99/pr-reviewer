@@ -54,3 +54,12 @@ def test_render_slice(belt):
     sl = build_slice(belt._session_factory, 99, belt._root, [ChangedFile("app.py", [(4, 5)])])
     text = render_slice(sl)
     assert "[changed] app.helper" in text and "[caller] app.caller" in text
+
+
+def test_grep_ignores_symlinks_escaping_the_sandbox(belt, tmp_path):
+    outside = tmp_path / "outside-secret.txt"
+    outside.write_text("SUPER_SECRET_TOKEN=abc123\n")
+    (belt._root / "innocuous.txt").symlink_to(outside)
+    out = belt.grep({"pattern": "SUPER_SECRET", "glob": "*"})
+    assert "abc123" not in out
+    assert out == "(no matches)"

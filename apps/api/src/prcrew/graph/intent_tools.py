@@ -118,6 +118,10 @@ class ToolBelt:
                 break
             if not path.is_file() or ".git" in path.parts:
                 continue
+            # Same sandbox rule as read_file: a symlink planted in the (PR-
+            # author-controlled) clone must not read files outside the root.
+            if not path.resolve().is_relative_to(self._root):
+                continue
             rel = path.relative_to(self._root)
             if not fnmatch.fnmatch(path.name, glob):
                 continue
