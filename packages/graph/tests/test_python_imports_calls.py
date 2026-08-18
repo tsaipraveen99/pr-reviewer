@@ -66,3 +66,39 @@ def test_parse_python_main_imports_and_calls():
 
     assert sorted(ir.imports, key=_sort_key_import) == sorted(expected_imports, key=_sort_key_import)
     assert sorted(ir.calls, key=_sort_key_call) == sorted(expected_calls, key=_sort_key_call)
+
+
+def test_parse_python_decorator_calls_attribute_to_enclosing_scope():
+    """Decorator expressions run in the ENCLOSING scope, not inside the def they decorate.
+
+    `@app.route("/x")` on a module-level `handler` is a call made by the module itself
+    (caller_qualified == module), resolved through the normal ladder like any other call
+    (here: `app` is bound by `import app`, so the dotted callee `app.route` resolves via
+    rule 3, longest-prefix alias match, to "app.route").
+
+    `@property` on `Widget.label` has no explicit call syntax (no parens), but applying a
+    decorator is itself an implicit call on the decorated function -- it must still be
+    recorded, attributed to the enclosing class `Widget` (not to `label`). `property` is
+    a builtin with no import or local def backing it, so it resolves to None.
+    """
+    source = b'''import app
+
+
+@app.route("/x")
+def handler():
+    return 1
+
+
+class Widget:
+    @property
+    def label(self):
+        return "w"
+'''
+    ir = parse_python("svc.py", source)
+
+    assert Call(
+        caller_qualified="svc", callee_name="app.route", resolved_qualified="app.route"
+    ) in ir.calls
+    assert Call(
+        caller_qualified="svc.Widget", callee_name="property", resolved_qualified=None
+    ) in ir.calls

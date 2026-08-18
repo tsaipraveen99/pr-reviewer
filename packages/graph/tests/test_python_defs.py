@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from prgraph.ir import Def
+from prgraph.ir import Call, Def
 from prgraph.parsers.python import parse_python
 
 FIXTURES = Path(__file__).parent / "fixtures" / "pyrepo"
@@ -22,6 +22,12 @@ def test_parse_python_models_defs():
         inner function_definition's own start line 6)
       - helper (function_definition, top-level function): lines 10-13
       - inner (function_definition, nested function): lines 11-12
+
+    `ir.calls` is not empty: the `@property` decorator on `label` has no explicit call
+    syntax (no parens), but applying a decorator is itself an implicit call on the
+    decorated function. It's attributed to the enclosing scope (the `User` class, not
+    `label` itself) and is unresolved (`property` is a builtin, not an import or local
+    def in this module).
     """
     source = (FIXTURES / "pkg" / "models.py").read_bytes()
     ir = parse_python("pkg/models.py", source)
@@ -30,7 +36,9 @@ def test_parse_python_models_defs():
     assert ir.lang == "python"
     assert ir.module_qualified == "pkg.models"
     assert ir.imports == []
-    assert ir.calls == []
+    assert ir.calls == [
+        Call(caller_qualified="pkg.models.User", callee_name="property", resolved_qualified=None),
+    ]
 
     assert ir.defs == [
         Def(

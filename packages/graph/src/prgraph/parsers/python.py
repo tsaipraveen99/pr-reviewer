@@ -221,6 +221,20 @@ def _resolve_call(
     return None
 
 
+def _append_call(
+    callee_name: str,
+    resolved: str | None,
+    ancestors: list[str],
+    module: str,
+    calls: list[Call],
+) -> None:
+    """Append a Call for `callee_name`, caller-qualified from `ancestors`/`module`."""
+    caller_qualified = ".".join([module, *ancestors]) if ancestors else module
+    calls.append(
+        Call(caller_qualified=caller_qualified, callee_name=callee_name, resolved_qualified=resolved)
+    )
+
+
 def _collect_calls(
     node: Node,
     ancestors: list[str],
@@ -232,7 +246,11 @@ def _collect_calls(
     """Recursively collect every `call` node, attributing it to its enclosing def.
 
     `ancestors` is the stack of enclosing def names (module-level calls, with
-    an empty stack, attribute to the module symbol itself).
+    an empty stack, attribute to the module symbol itself). Decorator expressions
+    run in the ENCLOSING scope, not inside the function/class they decorate, so
+    calls found there -- including bare-name/attribute decorators like `@property`,
+    which apply the decorator as an implicit call with no explicit call syntax --
+    are attributed to `ancestors`, not `[*ancestors, name]`.
     """
     for child in node.children:
         if child.type == "call":
@@ -243,17 +261,29 @@ def _collect_calls(
             else:
                 callee_name = _text(func_node) if func_node is not None else ""
                 resolved = None
-            caller_qualified = ".".join([module, *ancestors]) if ancestors else module
-            calls.append(
-                Call(
-                    caller_qualified=caller_qualified,
-                    callee_name=callee_name,
-                    resolved_qualified=resolved,
-                )
-            )
+            _append_call(callee_name, resolved, ancestors, module, calls)
             _collect_calls(child, ancestors, module, calls, local_defs, alias_map)
         elif child.type == "decorated_definition":
             inner = next(c for c in child.children if c.type in _DEF_NODE_TYPES)
+            for deco in child.children:
+                if deco.type != "decorator":
+                    continue
+                expr = next((c for c in deco.children if c.type != "@"), None)
+                if expr is None:
+                    continue
+                if expr.type in _CALLABLE_FUNC_NODE_TYPES:
+                    # Bare name/attribute decorator (e.g. `@property`, `@a.b`):
+                    # no explicit call syntax, but applying it IS an implicit
+                    # call on the decorated function -- there's no `call` node
+                    # for the generic scan below to find, so record it directly.
+                    callee_name = _text(expr)
+                    resolved = _resolve_call(callee_name, local_defs, alias_map, module)
+                    _append_call(callee_name, resolved, ancestors, module, calls)
+                else:
+                    # `@app.route("/foo")` etc: the decorator's expression is
+                    # itself a `call` node (or something stranger); the generic
+                    # scan below picks it up, still in the enclosing scope.
+                    _collect_calls(deco, ancestors, module, calls, local_defs, alias_map)
             name_node = inner.child_by_field_name("name")
             name = _text(name_node) if name_node is not None else ""
             _collect_calls(inner, [*ancestors, name], module, calls, local_defs, alias_map)
