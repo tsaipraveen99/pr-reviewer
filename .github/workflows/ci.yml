@@ -12,6 +12,8 @@ jobs:
       - run: uv sync --all-extras --dev
       - run: uv run ruff check .
       - run: uv run pytest -q
+      - run: uv run alembic upgrade head
+        env: { DATABASE_URL: 'sqlite+aiosqlite:///./ci-smoke.db' }
   web:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: apps/web } }
