@@ -1,0 +1,10 @@
+docs/superpowers/
+.superpowers/
+__pycache__/
+.venv/
+.env
+node_modules/
+dist/
+.ruff_cache/
+.pytest_cache/
+coverage/
