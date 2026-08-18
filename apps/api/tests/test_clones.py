@@ -55,3 +55,8 @@ def test_clone_error_scrubs_token(tmp_path):
         ensure_clone("https://x-access-token:SECRETTOKEN@127.0.0.1:1/none.git",
                      tmp_path / "c", 1, "a" * 40, token="SECRETTOKEN")
     assert "SECRETTOKEN" not in str(exc.value)
+    # The chained traceback is what logger.exception prints — it must not
+    # resurrect the token via CalledProcessError.cmd.
+    import traceback
+    chain = "".join(traceback.format_exception(exc.value))
+    assert "SECRETTOKEN" not in chain

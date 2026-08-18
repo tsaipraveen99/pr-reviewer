@@ -12,13 +12,16 @@ def _git(args: list[str], cwd: Path, token: str | None) -> None:
     try:
         subprocess.run(["git", *args], cwd=cwd, check=True,
                        capture_output=True, text=True, timeout=180)
-    except subprocess.TimeoutExpired as e:
-        raise CloneError(f"git {args[0]} timed out") from e
+    # `from None` on both raises: the original exceptions carry the full argv
+    # (token-embedded URL) in .cmd, which logger.exception would print via the
+    # chained traceback. The scrubbed stderr tail already carries the detail.
+    except subprocess.TimeoutExpired:
+        raise CloneError(f"git {args[0]} timed out") from None
     except subprocess.CalledProcessError as e:
         detail = (e.stderr or "")[-500:]
         if token:
             detail = detail.replace(token, "***")
-        raise CloneError(f"git {args[0]} failed: {detail}") from e
+        raise CloneError(f"git {args[0]} failed: {detail}") from None
 
 
 def ensure_clone(clone_url: str, dest: Path, pr_number: int, head_sha: str,
