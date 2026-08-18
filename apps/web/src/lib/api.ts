@@ -64,3 +64,35 @@ export function fetchShowcases(): Promise<ShowcaseSummary[]> {
 export function fetchShowcase(slug: string): Promise<Showcase> {
   return request(`/showcases/${slug}`);
 }
+
+export interface ReviewResult {
+  review: string;
+  verified: unknown[];
+}
+
+export interface ReviewStatus {
+  status: string;
+  result: ReviewResult | null;
+}
+
+export function fetchReview(runId: string): Promise<ReviewStatus> {
+  return request(`/reviews/${runId}`);
+}
+
+/**
+ * Translates a `GET /reviews/{run_id}` response into the StreamEvent(s) the
+ * reducer expects, for use when the SSE stream drops before a terminal
+ * event arrives and the client falls back to a one-shot refetch.
+ */
+export function reviewResultToEvents(status: string, result: ReviewResult | null): StreamEvent[] {
+  if (status === "done" && result) {
+    return [
+      { type: "review_complete", review: result.review },
+      { type: "done" },
+    ];
+  }
+  if (status === "failed") {
+    return [{ type: "run_failed", error: "run failed" }];
+  }
+  return [{ type: "run_failed", error: "connection lost" }];
+}

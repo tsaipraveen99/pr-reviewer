@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import { fetchShowcase, startReview, streamUrl } from "../lib/api";
+import { fetchReview, fetchShowcase, reviewResultToEvents, startReview, streamUrl } from "../lib/api";
 import { initialView, reduce } from "../lib/reducer";
 import type { RunView, StreamEvent } from "../lib/types";
 
@@ -10,6 +10,7 @@ export function useReviewRun() {
   const [running, setRunning] = useState(false);
   const source = useRef<EventSource | null>(null);
   const timers = useRef<number[]>([]);
+  const terminalReached = useRef(false);
 
   const stop = () => {
     source.current?.close();
@@ -20,11 +21,15 @@ export function useReviewRun() {
 
   const dispatch = (ev: StreamEvent) => {
     setView(v => reduce(v, ev));
-    if (TERMINAL.has(ev.type)) stop();
+    if (TERMINAL.has(ev.type)) {
+      terminalReached.current = true;
+      stop();
+    }
   };
 
   const start = useCallback(async (prUrl: string) => {
     stop();
+    terminalReached.current = false;
     setView(initialView());
     setRunning(true);
     const { run_id } = await startReview(prUrl); // ApiError propagates to the form
@@ -35,7 +40,15 @@ export function useReviewRun() {
     ["node_started", "finding", "node_finished", "node_failed",
      "verified", "review_complete", "done", "run_failed"].forEach(t =>
       es.addEventListener(t, e => dispatch(JSON.parse((e as MessageEvent).data))));
-    es.onerror = () => stop();
+    es.onerror = () => {
+      stop();
+      // A normal server-side stream close also fires onerror; only recover
+      // via refetch when no terminal event has been seen yet.
+      if (terminalReached.current) return;
+      fetchReview(run_id)
+        .then(({ status, result }) => reviewResultToEvents(status, result).forEach(dispatch))
+        .catch(() => reviewResultToEvents("error", null).forEach(dispatch));
+    };
   }, []);
 
   const replay = useCallback(async (slug: string) => {
