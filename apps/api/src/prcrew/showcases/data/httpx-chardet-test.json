@@ -2,119 +2,129 @@
   "slug": "httpx-chardet-test",
   "title": "httpx: adapt autodetect test for chardet 6.0",
   "pr_url": "https://github.com/encode/httpx/pull/3773",
-  "recorded_at": "2026-08-18T02:29:19.211575+00:00",
+  "recorded_at": "2026-08-18T03:09:14.501586+00:00",
   "events": [
     {
       "type": "node_started",
       "node": "intake",
       "seq": 1,
-      "at_ms": 30
+      "at_ms": 44
     },
     {
       "type": "node_finished",
       "node": "intake",
       "seq": 2,
-      "at_ms": 30
+      "at_ms": 44
     },
     {
       "type": "node_started",
       "node": "correctness",
       "seq": 3,
-      "at_ms": 31
+      "at_ms": 45
     },
     {
       "type": "node_started",
       "node": "intent",
       "seq": 4,
-      "at_ms": 34
+      "at_ms": 49
     },
     {
       "type": "node_started",
       "node": "security",
       "seq": 5,
-      "at_ms": 35
+      "at_ms": 49
     },
     {
       "type": "node_started",
       "node": "tests",
       "seq": 6,
-      "at_ms": 36
-    },
-    {
-      "type": "node_finished",
-      "node": "intent",
-      "seq": 7,
-      "at_ms": 955
+      "at_ms": 50
     },
     {
       "type": "node_finished",
       "node": "security",
+      "seq": 7,
+      "at_ms": 860
+    },
+    {
+      "type": "node_finished",
+      "node": "intent",
       "seq": 8,
-      "at_ms": 956
+      "at_ms": 860
+    },
+    {
+      "type": "node_finished",
+      "node": "correctness",
+      "seq": 9,
+      "at_ms": 896
     },
     {
       "type": "finding",
       "node": "tests",
       "finding": {
+        "id": "tests-0",
         "agent": "tests",
         "file": "tests/models/test_responses.py",
         "line": 1014,
         "severity": "minor",
-        "claim": "Test assertion weakened to accept multiple encoding values without verifying both decode to the same text",
-        "evidence": "assert response.encoding in (\"ISO-8859-1\", \"WINDOWS-1252\")\n     assert response.text == text"
+        "claim": "Test assertion weakened to accept multiple encoding values without validating both decode correctly.",
+        "evidence": "assert response.encoding in (\"ISO-8859-1\", \"WINDOWS-1252\")\n    assert response.text == text"
       },
-      "seq": 9,
-      "at_ms": 1498
+      "seq": 10,
+      "at_ms": 1635
     },
     {
       "type": "node_finished",
       "node": "tests",
-      "seq": 10,
-      "at_ms": 1498
-    },
-    {
-      "type": "node_finished",
-      "node": "correctness",
       "seq": 11,
-      "at_ms": 2654
+      "at_ms": 1635
     },
     {
       "type": "node_started",
       "node": "verifier",
       "seq": 12,
-      "at_ms": 2655
+      "at_ms": 1636
+    },
+    {
+      "type": "finding_verdict",
+      "id": "tests-0",
+      "verdict": "rejected",
+      "severity": "minor",
+      "reason": "This finding mischaracterizes the change. The test does validate that both encodings decode correctly: the existing assertion `assert response.text == text` on line 1018 (after the diff) ensures that whichever encoding is detected, it produces the correct decoded text. The PR description explicitly states both encodings produce the same Unicode string from the byte sequence, making this validation sufficient. The change is a reasonable adaptation to handle a legitimate difference in chardet's behavior across versions 6.0+, not a weakening of test rigor without validation.",
+      "seq": 13,
+      "at_ms": 3981
     },
     {
       "type": "verified",
       "confirmed": 0,
       "rejected": 1,
-      "seq": 13,
-      "at_ms": 4813
+      "seq": 14,
+      "at_ms": 3981
     },
     {
       "type": "node_finished",
       "node": "verifier",
-      "seq": 14,
-      "at_ms": 4813
+      "seq": 15,
+      "at_ms": 3981
     },
     {
       "type": "node_started",
       "node": "synthesizer",
-      "seq": 15,
-      "at_ms": 4813
+      "seq": 16,
+      "at_ms": 3982
     },
     {
       "type": "review_complete",
-      "review": "## Verdict\n\nNo issues found. This is a small, low-risk test-only change that adapts `test_response_decode_text_using_autodetect` for compatibility with chardet 6.0. The panel found nothing to flag.\n\n## Findings\n\nNone.\n\n**Note:** The panel did not have access to the actual diff/CI output for this PR, so this review is based solely on the absence of reported findings rather than an independent line-by-line verification of the chardet 6.0 behavioral changes (e.g., confidence score or encoding label differences) that motivated the fix.",
-      "seq": 16,
-      "at_ms": 8109
+      "review": "No confirmed findings from the panel. The PR looks good to merge based on the review conducted \u2014 it's a narrowly scoped test adaptation for chardet 6.0 compatibility and no issues were identified. Note: the panel's review was limited to the confirmed-findings process here, so this does not substitute for verifying locally that the updated test actually passes against both the old and new chardet versions in CI, or checking whether other tests/fixtures rely on the same chardet behavior change.",
+      "seq": 17,
+      "at_ms": 7165
     },
     {
       "type": "node_finished",
       "node": "synthesizer",
-      "seq": 17,
-      "at_ms": 8109
+      "seq": 18,
+      "at_ms": 7165
     }
   ],
-  "review": "## Verdict\n\nNo issues found. This is a small, low-risk test-only change that adapts `test_response_decode_text_using_autodetect` for compatibility with chardet 6.0. The panel found nothing to flag.\n\n## Findings\n\nNone.\n\n**Note:** The panel did not have access to the actual diff/CI output for this PR, so this review is based solely on the absence of reported findings rather than an independent line-by-line verification of the chardet 6.0 behavioral changes (e.g., confidence score or encoding label differences) that motivated the fix."
+  "review": "No confirmed findings from the panel. The PR looks good to merge based on the review conducted \u2014 it's a narrowly scoped test adaptation for chardet 6.0 compatibility and no issues were identified. Note: the panel's review was limited to the confirmed-findings process here, so this does not substitute for verifying locally that the updated test actually passes against both the old and new chardet versions in CI, or checking whether other tests/fixtures rely on the same chardet behavior change."
 }

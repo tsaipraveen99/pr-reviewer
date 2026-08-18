@@ -2,119 +2,105 @@
   "slug": "httpx-functionauth-all",
   "title": "httpx: expose FunctionAuth in __all__",
   "pr_url": "https://github.com/encode/httpx/pull/3699",
-  "recorded_at": "2026-08-18T02:29:33.642239+00:00",
+  "recorded_at": "2026-08-18T03:09:21.924653+00:00",
   "events": [
     {
       "type": "node_started",
       "node": "intake",
       "seq": 1,
-      "at_ms": 31
+      "at_ms": 48
     },
     {
       "type": "node_finished",
       "node": "intake",
       "seq": 2,
-      "at_ms": 31
+      "at_ms": 48
     },
     {
       "type": "node_started",
       "node": "correctness",
       "seq": 3,
-      "at_ms": 32
+      "at_ms": 49
     },
     {
       "type": "node_started",
       "node": "intent",
       "seq": 4,
-      "at_ms": 36
+      "at_ms": 53
     },
     {
       "type": "node_started",
       "node": "security",
       "seq": 5,
-      "at_ms": 36
+      "at_ms": 53
     },
     {
       "type": "node_started",
       "node": "tests",
       "seq": 6,
-      "at_ms": 37
-    },
-    {
-      "type": "node_finished",
-      "node": "intent",
-      "seq": 7,
-      "at_ms": 1040
-    },
-    {
-      "type": "node_finished",
-      "node": "correctness",
-      "seq": 8,
-      "at_ms": 1041
-    },
-    {
-      "type": "finding",
-      "node": "tests",
-      "finding": {
-        "agent": "tests",
-        "file": "tests/test_exported_members.py",
-        "line": null,
-        "severity": "minor",
-        "claim": "No new test assertions added to verify FunctionAuth is properly exported in __all__",
-        "evidence": "The PR description states 'tests/test_exported_members.py:test_exported_members covers this' but the diff does not show any test changes, relying on an existing test that may not explicitly validate FunctionAuth"
-      },
-      "seq": 9,
-      "at_ms": 1808
-    },
-    {
-      "type": "node_finished",
-      "node": "tests",
-      "seq": 10,
-      "at_ms": 1808
+      "at_ms": 58
     },
     {
       "type": "node_finished",
       "node": "security",
-      "seq": 11,
-      "at_ms": 5516
+      "seq": 7,
+      "at_ms": 1130
+    },
+    {
+      "type": "node_finished",
+      "node": "tests",
+      "seq": 8,
+      "at_ms": 1168
+    },
+    {
+      "type": "node_finished",
+      "node": "correctness",
+      "seq": 9,
+      "at_ms": 1181
+    },
+    {
+      "type": "node_finished",
+      "node": "intent",
+      "seq": 10,
+      "at_ms": 1379
     },
     {
       "type": "node_started",
       "node": "verifier",
-      "seq": 12,
-      "at_ms": 5518
+      "seq": 11,
+      "at_ms": 1381
     },
     {
       "type": "verified",
       "confirmed": 0,
-      "rejected": 1,
-      "seq": 13,
-      "at_ms": 8342
+      "rejected": 0,
+      "seq": 12,
+      "at_ms": 1381
     },
     {
       "type": "node_finished",
       "node": "verifier",
-      "seq": 14,
-      "at_ms": 8342
+      "seq": 13,
+      "at_ms": 1381
     },
     {
       "type": "node_started",
       "node": "synthesizer",
-      "seq": 15,
-      "at_ms": 8342
+      "seq": 14,
+      "at_ms": 1382
     },
     {
       "type": "review_complete",
-      "review": "## Verdict\n\nNo issues found. This is a minimal, low-risk change that adds `FunctionAuth` to `__all__`, making it consistent with the other auth classes already exported from the module. The panel found nothing to flag.\n\n**Note:** The panel did not verify whether `FunctionAuth` is documented elsewhere (e.g., README or docs site) or whether its public exposure was intentionally deferred for API-stability reasons \u2014 worth a quick sanity check before merging if that context isn't already known.",
-      "seq": 16,
-      "at_ms": 11878
+      "review": "## Verdict\n\nNo issues found. This is a minimal, low-risk change that adds `FunctionAuth` to the `__all__` export list, making it part of the public API alongside the other auth classes already exported (e.g., `BasicAuth`, `DigestAuth`). The change is straightforward and does what it says.\n\n## Findings\n\nNone reported by the panel.\n\n**Note:** The panel's review scope was limited to the confirmed findings provided; no independent verification of the diff (e.g., correct file location, alphabetical/logical ordering in `__all__`, or whether `FunctionAuth` is otherwise fully documented) was performed here.",
+      "seq": 15,
+      "at_ms": 4797
     },
     {
       "type": "node_finished",
       "node": "synthesizer",
-      "seq": 17,
-      "at_ms": 11878
+      "seq": 16,
+      "at_ms": 4797
     }
   ],
-  "review": "## Verdict\n\nNo issues found. This is a minimal, low-risk change that adds `FunctionAuth` to `__all__`, making it consistent with the other auth classes already exported from the module. The panel found nothing to flag.\n\n**Note:** The panel did not verify whether `FunctionAuth` is documented elsewhere (e.g., README or docs site) or whether its public exposure was intentionally deferred for API-stability reasons \u2014 worth a quick sanity check before merging if that context isn't already known."
+  "review": "## Verdict\n\nNo issues found. This is a minimal, low-risk change that adds `FunctionAuth` to the `__all__` export list, making it part of the public API alongside the other auth classes already exported (e.g., `BasicAuth`, `DigestAuth`). The change is straightforward and does what it says.\n\n## Findings\n\nNone reported by the panel.\n\n**Note:** The panel's review scope was limited to the confirmed findings provided; no independent verification of the diff (e.g., correct file location, alphabetical/logical ordering in `__all__`, or whether `FunctionAuth` is otherwise fully documented) was performed here."
 }

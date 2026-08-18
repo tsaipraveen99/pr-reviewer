@@ -2,161 +2,201 @@
   "slug": "flask-query-decorator",
   "title": "Flask: add app.query route decorator",
   "pr_url": "https://github.com/pallets/flask/pull/6133",
-  "recorded_at": "2026-08-18T02:29:03.556772+00:00",
+  "recorded_at": "2026-08-18T03:09:04.753134+00:00",
   "events": [
     {
       "type": "node_started",
       "node": "intake",
       "seq": 1,
-      "at_ms": 33
+      "at_ms": 48
     },
     {
       "type": "node_finished",
       "node": "intake",
       "seq": 2,
-      "at_ms": 33
+      "at_ms": 48
     },
     {
       "type": "node_started",
       "node": "correctness",
       "seq": 3,
-      "at_ms": 34
+      "at_ms": 50
     },
     {
       "type": "node_started",
       "node": "intent",
       "seq": 4,
-      "at_ms": 37
+      "at_ms": 56
     },
     {
       "type": "node_started",
       "node": "security",
       "seq": 5,
-      "at_ms": 38
+      "at_ms": 57
     },
     {
       "type": "node_started",
       "node": "tests",
       "seq": 6,
-      "at_ms": 39
+      "at_ms": 63
+    },
+    {
+      "type": "node_finished",
+      "node": "correctness",
+      "seq": 7,
+      "at_ms": 1004
+    },
+    {
+      "type": "finding",
+      "node": "intent",
+      "finding": {
+        "id": "intent-0",
+        "agent": "intent",
+        "file": "<UNKNOWN>",
+        "line": null,
+        "severity": "major",
+        "claim": "PR title and description claim to implement `app.query` route decorator but linked issue #3193 describes a completely different problem about Flask session variables not being available in threads.",
+        "evidence": "PR title: 'add `app.query` route decorator' vs Issue #3193: 'Flask Session variable not available in threads' with example about passing via Queue"
+      },
+      "seq": 8,
+      "at_ms": 2035
+    },
+    {
+      "type": "node_finished",
+      "node": "intent",
+      "seq": 9,
+      "at_ms": 2035
+    },
+    {
+      "type": "finding",
+      "node": "security",
+      "finding": {
+        "id": "security-0",
+        "agent": "security",
+        "file": "src/flask/sansio/scaffold.py",
+        "line": 305,
+        "severity": "major",
+        "claim": "HTTP QUERY method is non-standard and may enable unintended request processing if not properly validated downstream.",
+        "evidence": "return self._method_route(\"QUERY\", rule, options)"
+      },
+      "seq": 10,
+      "at_ms": 2153
     },
     {
       "type": "node_finished",
       "node": "security",
-      "seq": 7,
-      "at_ms": 874
+      "seq": 11,
+      "at_ms": 2153
     },
     {
       "type": "finding",
       "node": "tests",
       "finding": {
+        "id": "tests-0",
         "agent": "tests",
         "file": "tests/test_basic.py",
         "line": 56,
         "severity": "major",
-        "claim": "Test for new `app.query` decorator uses a partial fallback instead of asserting that client.query method exists",
+        "claim": "Test for new `app.query` decorator uses a fallback that bypasses client method validation.",
         "evidence": "client_method = getattr(\n        client, method, partial(client.open, method=method.capitalize())\n    )"
       },
-      "seq": 8,
-      "at_ms": 1793
+      "seq": 12,
+      "at_ms": 2656
+    },
+    {
+      "type": "finding",
+      "node": "tests",
+      "finding": {
+        "id": "tests-1",
+        "agent": "tests",
+        "file": "tests/test_basic.py",
+        "line": 55,
+        "severity": "major",
+        "claim": "Test does not verify that the QUERY method is actually supported by the test client or HTTP stack.",
+        "evidence": "@pytest.mark.parametrize(\"method\", [\"get\", \"query\", \"post\", \"put\", \"delete\", \"patch\"])\ndef test_method_route(app, client, method):"
+      },
+      "seq": 13,
+      "at_ms": 2656
     },
     {
       "type": "node_finished",
       "node": "tests",
-      "seq": 9,
-      "at_ms": 1793
-    },
-    {
-      "type": "finding",
-      "node": "intent",
-      "finding": {
-        "agent": "intent",
-        "file": "<unknown>",
-        "line": null,
-        "severity": "major",
-        "claim": "PR claims to add `app.query` route decorator as mentioned in title and description, but the linked issue #3193 is about Flask Session variables not being available in threads, which is unrelated to HTTP QUERY method support",
-        "evidence": "PR Title: 'add `app.query` route decorator' vs Linked Issue #3193: 'Flask Session variable not available in threads'"
-      },
-      "seq": 10,
-      "at_ms": 3187
-    },
-    {
-      "type": "finding",
-      "node": "intent",
-      "finding": {
-        "agent": "intent",
-        "file": "<unknown>",
-        "line": null,
-        "severity": "major",
-        "claim": "PR description mentions RFC 10008 and adding `app.query` for HTTP QUERY method support, but the linked issue #3193 makes no mention of RFC 10008 or HTTP QUERY methods and instead discusses session thread-safety problems",
-        "evidence": "PR Description states 'I'm adding it now' referring to RFC 10008 support, but Issue #3193 describes session access problems in threads with no reference to QUERY HTTP method"
-      },
-      "seq": 11,
-      "at_ms": 3187
-    },
-    {
-      "type": "node_finished",
-      "node": "intent",
-      "seq": 12,
-      "at_ms": 3187
-    },
-    {
-      "type": "finding",
-      "node": "correctness",
-      "finding": {
-        "agent": "correctness",
-        "file": "tests/test_basic.py",
-        "line": 58,
-        "severity": "major",
-        "claim": "The fallback for missing client method uses incorrect method name capitalization that will fail for 'query'",
-        "evidence": "client_method = getattr(\n        client, method, partial(client.open, method=method.capitalize())\n    )\n\nwhere method=\"query\" will result in method=\"Query\" instead of \"QUERY\""
-      },
-      "seq": 13,
-      "at_ms": 3648
-    },
-    {
-      "type": "node_finished",
-      "node": "correctness",
       "seq": 14,
-      "at_ms": 3648
+      "at_ms": 2656
     },
     {
       "type": "node_started",
       "node": "verifier",
       "seq": 15,
-      "at_ms": 3649
+      "at_ms": 2658
+    },
+    {
+      "type": "finding_verdict",
+      "id": "intent-0",
+      "verdict": "rejected",
+      "severity": "major",
+      "reason": "This is an argument with the PR description's wording rather than an actionable defect in the code. The PR description explains the reason for the change (it addresses issue #3193), but the actual code changes implement what the title claims: adding an `app.query` route decorator. The diff itself correctly implements this feature. The discrepancy between the title and the linked issue is a documentation/description concern, not a code defect.",
+      "seq": 16,
+      "at_ms": 9214
+    },
+    {
+      "type": "finding_verdict",
+      "id": "security-0",
+      "verdict": "rejected",
+      "severity": "major",
+      "reason": "This finding misreads the code. The code doesn't enable 'unintended request processing' \u2014 it simply adds a route decorator method that calls `_method_route(\"QUERY\", rule, options)`, which is the standard pattern used for all HTTP method decorators in this file (GET, POST, PUT, DELETE, PATCH). The RFC 10008 QUERY method is being added intentionally and consistently with the existing architecture. Validation downstream is handled by the same mechanisms as other HTTP methods. This is not a security vulnerability.",
+      "seq": 17,
+      "at_ms": 9214
+    },
+    {
+      "type": "finding_verdict",
+      "id": "tests-0",
+      "verdict": "confirmed",
+      "severity": "minor",
+      "reason": "The test uses a fallback mechanism (`partial(client.open, method=method.capitalize())`) to handle the 'query' method, which bypasses the proper `client.query()` method that should exist if the test client has been updated to support the QUERY method. However, the diff notes mention 'Adjusted the test here to account for Werkzeug not being released yet,' so this is a known limitation due to dependency synchronization, not a test defect per se. But the finding is technically correct: the test doesn't directly validate the client method.",
+      "seq": 18,
+      "at_ms": 9214
+    },
+    {
+      "type": "finding_verdict",
+      "id": "tests-1",
+      "verdict": "rejected",
+      "severity": "major",
+      "reason": "This is not an actionable defect. The test is a parametrized route decorator test that verifies Flask's route decorator methods work consistently. It doesn't need to verify HTTP stack support \u2014 that's already tested by the actual HTTP layer. The test appropriately uses a fallback for an unimplemented client method (as noted in the PR description). This is a reasonable approach for testing route decorator consistency while waiting for the Werkzeug release.",
+      "seq": 19,
+      "at_ms": 9214
     },
     {
       "type": "verified",
-      "confirmed": 2,
-      "rejected": 2,
-      "seq": 16,
-      "at_ms": 8323
+      "confirmed": 1,
+      "rejected": 3,
+      "seq": 20,
+      "at_ms": 9214
     },
     {
       "type": "node_finished",
       "node": "verifier",
-      "seq": 17,
-      "at_ms": 8323
+      "seq": 21,
+      "at_ms": 9214
     },
     {
       "type": "node_started",
       "node": "synthesizer",
-      "seq": 18,
-      "at_ms": 8324
+      "seq": 22,
+      "at_ms": 9215
     },
     {
       "type": "review_complete",
-      "review": "## Verdict\n\nThis PR adds an `app.query` route decorator but the accompanying test coverage is unreliable and masks a real bug rather than catching it. The fallback logic in the test silently swallows the case where `client.query` doesn't exist (e.g., not yet implemented in the test client used), and even if it did fall through, it would send the wrong HTTP method (`Query` instead of `QUERY`) due to incorrect capitalization. As it stands, this test cannot be trusted to verify that the new decorator actually works end-to-end. Please fix the capitalization bug and rework the test to explicitly assert `client.query` exists rather than silently falling back.\n\n### Major\n- **tests/test_basic.py:58** \u2014 `method.capitalize()` produces `\"Query\"` instead of the required `\"QUERY\"`, so if the fallback path is ever exercised, the request is sent with an invalid/incorrect HTTP method.\n  ```python\n  client_method = getattr(\n      client, method, partial(client.open, method=method.capitalize())\n  )\n  ```\n  Use `method.upper()` instead.\n\n- **tests/test_basic.py:56** \u2014 The test uses a `getattr(..., partial(...))` fallback instead of asserting that `client.query` actually exists. This means the test will pass even if `client.query` is missing entirely, defeating the purpose of validating the new decorator's integration with the test client.\n  ```python\n  client_method = getattr(\n      client, method, partial(client.open, method=method.capitalize())\n  )\n  ```\n  Replace with a direct call to `client.query(...)` (or an explicit `assert hasattr(client, \"query\")`) so the test fails loudly if the method is not wired up correctly.",
-      "seq": 19,
-      "at_ms": 15434
+      "review": "## Verdict\n\nOnly one confirmed finding came out of this review, and it's minor and test-only \u2014 it does not block merging on its own. However, the panel's confirmed findings are limited to `tests/test_basic.py`; no findings were confirmed (or apparently checked) against the actual `app.query` decorator implementation itself, so this review should not be read as a sign-off on the feature's core logic, routing behavior, or documentation.\n\n### Minor\n\n- **tests/test_basic.py:56** \u2014 The test for the new `app.query` decorator resolves the HTTP client method via `getattr(client, method, partial(client.open, method=method.capitalize()))`. This silently falls back to a generic `client.open(method=...)` call if `client` doesn't have a matching attribute (e.g. due to a typo in `method` or an unsupported HTTP verb), rather than failing loudly. This weakens the test's ability to catch method-name mismatches or misconfiguration in the `query` decorator wiring.\n  ```python\n  client_method = getattr(\n      client, method, partial(client.open, method=method.capitalize())\n  )\n  ```\n  Recommend asserting that `hasattr(client, method)` (or explicitly checking for the expected client methods) before falling back, so a missing/misspelled method fails the test instead of silently degrading to a generic open call.\n\n### Not checked / out of scope for this panel\n\n- The implementation of `app.query` itself (routing rules, `GET`-with-body semantics, integration with `add_url_rule`) was not covered by any confirmed finding \u2014 reviewers should independently verify this before merge.\n- Documentation/changelog updates for the new decorator were not assessed.",
+      "seq": 23,
+      "at_ms": 16707
     },
     {
       "type": "node_finished",
       "node": "synthesizer",
-      "seq": 20,
-      "at_ms": 15434
+      "seq": 24,
+      "at_ms": 16707
     }
   ],
-  "review": "## Verdict\n\nThis PR adds an `app.query` route decorator but the accompanying test coverage is unreliable and masks a real bug rather than catching it. The fallback logic in the test silently swallows the case where `client.query` doesn't exist (e.g., not yet implemented in the test client used), and even if it did fall through, it would send the wrong HTTP method (`Query` instead of `QUERY`) due to incorrect capitalization. As it stands, this test cannot be trusted to verify that the new decorator actually works end-to-end. Please fix the capitalization bug and rework the test to explicitly assert `client.query` exists rather than silently falling back.\n\n### Major\n- **tests/test_basic.py:58** \u2014 `method.capitalize()` produces `\"Query\"` instead of the required `\"QUERY\"`, so if the fallback path is ever exercised, the request is sent with an invalid/incorrect HTTP method.\n  ```python\n  client_method = getattr(\n      client, method, partial(client.open, method=method.capitalize())\n  )\n  ```\n  Use `method.upper()` instead.\n\n- **tests/test_basic.py:56** \u2014 The test uses a `getattr(..., partial(...))` fallback instead of asserting that `client.query` actually exists. This means the test will pass even if `client.query` is missing entirely, defeating the purpose of validating the new decorator's integration with the test client.\n  ```python\n  client_method = getattr(\n      client, method, partial(client.open, method=method.capitalize())\n  )\n  ```\n  Replace with a direct call to `client.query(...)` (or an explicit `assert hasattr(client, \"query\")`) so the test fails loudly if the method is not wired up correctly."
+  "review": "## Verdict\n\nOnly one confirmed finding came out of this review, and it's minor and test-only \u2014 it does not block merging on its own. However, the panel's confirmed findings are limited to `tests/test_basic.py`; no findings were confirmed (or apparently checked) against the actual `app.query` decorator implementation itself, so this review should not be read as a sign-off on the feature's core logic, routing behavior, or documentation.\n\n### Minor\n\n- **tests/test_basic.py:56** \u2014 The test for the new `app.query` decorator resolves the HTTP client method via `getattr(client, method, partial(client.open, method=method.capitalize()))`. This silently falls back to a generic `client.open(method=...)` call if `client` doesn't have a matching attribute (e.g. due to a typo in `method` or an unsupported HTTP verb), rather than failing loudly. This weakens the test's ability to catch method-name mismatches or misconfiguration in the `query` decorator wiring.\n  ```python\n  client_method = getattr(\n      client, method, partial(client.open, method=method.capitalize())\n  )\n  ```\n  Recommend asserting that `hasattr(client, method)` (or explicitly checking for the expected client methods) before falling back, so a missing/misspelled method fails the test instead of silently degrading to a generic open call.\n\n### Not checked / out of scope for this panel\n\n- The implementation of `app.query` itself (routing rules, `GET`-with-body semantics, integration with `add_url_rule`) was not covered by any confirmed finding \u2014 reviewers should independently verify this before merge.\n- Documentation/changelog updates for the new decorator were not assessed."
 }
