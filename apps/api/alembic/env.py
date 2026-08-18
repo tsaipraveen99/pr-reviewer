@@ -1,5 +1,6 @@
 from logging.config import fileConfig
 
+from prgraph.db import Base as GraphBase
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
@@ -17,7 +18,7 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-target_metadata = Base.metadata
+target_metadata = [Base.metadata, GraphBase.metadata]
 
 
 def _sync_url() -> str:
