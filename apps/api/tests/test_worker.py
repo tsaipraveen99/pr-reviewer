@@ -120,3 +120,49 @@ def test_failure_completes_check_run_neutral(worker_env):
                         lambda: (ExplodingFactory(), checks, settings))
     assert handle_pr_event.delay(**KWARGS).get() == "failed"
     assert checks.completed and checks.completed[0][1] == "neutral"
+
+
+def test_deps_reuses_engine(monkeypatch, tmp_path):
+    # Drives the REAL _deps() (not the worker_env fixture's monkeypatched
+    # seam) to verify engines are cached per DATABASE_URL rather than
+    # rebuilt on every task invocation.
+    import prcrew.db as db_mod
+
+    made: list[str] = []
+    real_make_sync_engine = db_mod.make_sync_engine
+
+    def counting(url):
+        made.append(url)
+        return real_make_sync_engine(url)
+
+    monkeypatch.setattr(db_mod, "make_sync_engine", counting)
+    monkeypatch.setenv("DATABASE_URL", f"sqlite+aiosqlite:///{tmp_path}/deps-test.db")
+    tasks_mod._ENGINES.clear()
+
+    tasks_mod._deps()
+    tasks_mod._deps()
+
+    assert len(made) == 1
+
+
+def test_failure_when_complete_also_raises(worker_env):
+    factory, _checks, settings, monkeypatch = worker_env
+
+    class DoubleFailChecks(FakeChecks):
+        def complete(self, *a, **kw):
+            raise RuntimeError("github down")
+
+    bad = DoubleFailChecks()
+
+    class ExplodingFactory:
+        calls = 0
+
+        def __call__(self):
+            ExplodingFactory.calls += 1
+            if ExplodingFactory.calls >= 2:
+                raise RuntimeError("db down")
+            return factory()
+
+    monkeypatch.setattr(tasks_mod, "_deps", lambda: (ExplodingFactory(), bad, settings))
+    # must return "failed", not raise, even though complete() raises too
+    assert handle_pr_event.delay(**KWARGS).get() == "failed"

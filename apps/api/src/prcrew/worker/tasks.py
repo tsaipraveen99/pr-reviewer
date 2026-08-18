@@ -18,15 +18,37 @@ def ping() -> str:
     return "pong"
 
 
+_ENGINES: dict[str, object] = {}
+
+
+def _cached_engine(url: str):
+    """One sync engine per DATABASE_URL for the life of the worker process
+    (a fresh engine per task invocation leaks connections)."""
+    if url not in _ENGINES:
+        from prcrew.db import make_sync_engine
+        _ENGINES[url] = make_sync_engine(url)
+    return _ENGINES[url]
+
+
+def _complete_quietly(checks, installation_id: int, owner: str, repo: str,
+                      check_run_id: int, conclusion: str, title: str, summary: str) -> None:
+    """Complete the check run, swallowing errors: a completion failure must
+    never mask the original failure or crash the task."""
+    try:
+        checks.complete(installation_id, owner, repo, check_run_id, conclusion, title, summary)
+    except Exception:
+        logger.exception("failed to complete check run %s", check_run_id)
+
+
 def _deps():
     """Build real dependencies; tests monkeypatch this function."""
-    from prcrew.db import make_sync_engine, make_sync_session_factory
+    from prcrew.db import make_sync_session_factory
     from prcrew.github.app_auth import InstallationTokens
     from prcrew.github.checks import CheckRuns
     from prcrew.settings import Settings
 
     settings = Settings()
-    factory = make_sync_session_factory(make_sync_engine(settings.database_url))
+    factory = make_sync_session_factory(_cached_engine(settings.database_url))
     checks = CheckRuns(InstallationTokens(settings.github_app_id,
                                           settings.github_app_private_key))
     return factory, checks, settings
@@ -69,7 +91,7 @@ def handle_pr_event(installation_id: int, repo_id: int, repo_full_name: str,
     except Exception:
         # Never leave a hanging pending check.
         logger.exception("handle_pr_event failed for repo %s pr %s", repo_id, pr_number)
-        checks.complete(installation_id, owner, repo, check_run_id, "neutral",
-                        "pr-reviewer hit an internal error",
-                        "Something went wrong on our side; this PR was not reviewed.")
+        _complete_quietly(checks, installation_id, owner, repo, check_run_id, "neutral",
+                          "pr-reviewer hit an internal error",
+                          "Something went wrong on our side; this PR was not reviewed.")
         return "failed"

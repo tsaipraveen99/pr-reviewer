@@ -188,6 +188,33 @@ def test_installation_deleted_removes_rows(harness):
     assert asyncio.run(_count()) == (0, 0)
 
 
+def test_repo_redelivery_preserves_index_state(harness):
+    app, factory, _ = harness
+    added = {"action": "added", "installation": {"id": 111},
+             "repositories_added": [{"id": 1000, "full_name": "x/z"}],
+             "repositories_removed": []}
+    with TestClient(app) as client:
+        post(client, "installation_repositories", added, delivery="ix-1")
+
+    async def _mark_ready():
+        async with factory() as session:
+            row = await session.get(Repo, 1000)
+            row.index_status = "ready"
+            row.indexed_commit = "deadbeef"
+            await session.commit()
+    asyncio.run(_mark_ready())
+
+    with TestClient(app) as client:
+        post(client, "installation_repositories", added, delivery="ix-2")
+
+    async def _check():
+        async with factory() as session:
+            return await session.get(Repo, 1000)
+    row = asyncio.run(_check())
+    assert row.index_status == "ready"
+    assert row.indexed_commit == "deadbeef"
+
+
 def test_create_app_mounts_injected_router(harness):
     from prcrew.api.app import create_app
     # build a router with a fake enqueue, inject it, and assert the route is mounted.

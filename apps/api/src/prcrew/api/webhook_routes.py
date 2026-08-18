@@ -60,7 +60,7 @@ def make_webhook_router(settings: Settings, session_factory,
                 await session.merge(Installation(id=inst["id"],
                                                  account_login=inst["account"]["login"]))
                 for repo in payload.get("repositories") or []:
-                    await session.merge(_repo_row(repo, inst["id"]))
+                    await _upsert_repo(session, repo, inst["id"])
             elif action == "deleted":
                 await session.execute(
                     delete(Repo).where(Repo.installation_id == inst["id"]))
@@ -81,7 +81,7 @@ def make_webhook_router(settings: Settings, session_factory,
         inst_id = payload["installation"]["id"]
         async with session_factory() as session:
             for repo in payload.get("repositories_added") or []:
-                await session.merge(_repo_row(repo, inst_id))
+                await _upsert_repo(session, repo, inst_id)
             removed = [r["id"] for r in payload.get("repositories_removed") or []]
             if removed:
                 await session.execute(delete(Repo).where(Repo.id.in_(removed)))
@@ -93,5 +93,20 @@ def make_webhook_router(settings: Settings, session_factory,
                     full_name=repo["full_name"],
                     default_branch=repo.get("default_branch", "main"),
                     index_status="pending")
+
+    async def _upsert_repo(session, repo: dict, installation_id: int) -> None:
+        """Insert or update a repo row WITHOUT touching index bookkeeping.
+
+        A blind merge would stamp index_status="pending" over a live
+        "ready" row on webhook redelivery (see spec Phase 3 notes).
+        """
+        from prcrew.db import Repo
+        row = await session.get(Repo, repo["id"])
+        if row is None:
+            session.add(_repo_row(repo, installation_id))
+            return
+        row.installation_id = installation_id
+        row.full_name = repo["full_name"]
+        row.default_branch = repo.get("default_branch", row.default_branch)
 
     return router
