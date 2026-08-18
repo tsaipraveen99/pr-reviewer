@@ -4,7 +4,7 @@ import { ReviewPane } from "./components/ReviewPane";
 import { ShowcaseGallery } from "./components/ShowcaseGallery";
 import { useReviewRun } from "./hooks/useReviewRun";
 
-const GITHUB_URL: string = import.meta.env.VITE_GITHUB_URL ?? "https://github.com/tsaipraveen99/pr-crew";
+const GITHUB_URL: string = import.meta.env.VITE_GITHUB_URL ?? "https://github.com/tsaipraveen99/pr-reviewer";
 
 function App() {
   const { view, running, start, replay } = useReviewRun();
@@ -14,7 +14,7 @@ function App() {
       <div className="mx-auto flex max-w-4xl flex-col gap-10 px-6 py-12">
         <header className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-zinc-100">pr-crew</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-zinc-100">pr-reviewer</h1>
             <p className="mt-1 text-sm text-zinc-400">
               A crew of specialist agents reviews your pull request, live, in the browser.
             </p>

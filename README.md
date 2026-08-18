@@ -1,6 +1,6 @@
-# pr-crew
+# pr-reviewer
 
-pr-crew reviews a public GitHub pull request with a small crew of LLM agents instead of one: four specialists read the diff in parallel, an adversarial verifier rejects anything they can't back up with a real quote from the diff, and a synthesizer turns the survivors into one report. A React frontend streams the whole run live, agent by agent, over SSE.
+pr-reviewer reviews a public GitHub pull request with a small crew of LLM agents instead of one: four specialists read the diff in parallel, an adversarial verifier rejects anything they can't back up with a real quote from the diff, and a synthesizer turns the survivors into one report. A React frontend streams the whole run live, agent by agent, over SSE.
 
 <!-- screenshot: added after deploy -->
 
