@@ -46,9 +46,17 @@ class AgentLLM:
         total = {"input_tokens": 0, "output_tokens": 0}
         calls_used = 0
         force_final = False
+        forced_attempts = 0
         while True:
+            forcing = force_final or calls_used >= max_tool_calls
             kwargs: dict = {"tools": [*tools, final_tool]}
-            if force_final or calls_used >= max_tool_calls:
+            if forcing:
+                # tool_choice forcing is normally honored; the attempt cap
+                # exists so a non-compliant model can't spin paid calls forever.
+                if forced_attempts >= 3:
+                    raise RuntimeError(
+                        "model did not produce the final tool report after 3 forced attempts")
+                forced_attempts += 1
                 kwargs = {"tools": [final_tool],
                           "tool_choice": {"type": "tool", "name": final_tool["name"]}}
             resp = await self._call(system=system, messages=messages, **kwargs)

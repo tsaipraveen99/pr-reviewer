@@ -223,3 +223,16 @@ async def test_tool_loop_text_only_response_forces_final():
     second_kwargs = client.messages.create.call_args_list[1].kwargs
     assert second_kwargs["tool_choice"] == {"type": "tool", "name": "report_findings"}
     assert second_kwargs["tools"] == [FINAL_TOOL]
+
+
+async def test_tool_loop_gives_up_after_repeated_noncompliant_forced_responses():
+    client = MagicMock()
+    text_only = _resp([_text_block("still refusing")])
+    client.messages.create = AsyncMock(side_effect=[text_only, text_only, text_only, text_only])
+    llm = AgentLLM(model="m", client=client)
+
+    with pytest.raises(RuntimeError, match="forced attempts"):
+        await llm.tool_loop("sys", "user", [READ_TOOL], {}, FINAL_TOOL)
+
+    # 1 unforced + 3 forced attempts, then give up — never a 5th paid call.
+    assert client.messages.create.call_count == 4
