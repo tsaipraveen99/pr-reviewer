@@ -7,5 +7,7 @@ COPY README.md alembic.ini ./
 COPY alembic ./alembic
 COPY src ./src
 RUN uv sync --frozen --no-dev
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
 EXPOSE 8000
-CMD ["uv", "run", "uvicorn", "prcrew.api.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["./docker-entrypoint.sh"]

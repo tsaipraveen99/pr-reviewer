@@ -44,7 +44,12 @@ def create_app(run_manager=None, github=None, settings: Settings | None = None) 
         # migrations. Best-effort so `uv run uvicorn` just works out of the box.
         @asynccontextmanager
         async def lifespan(app: FastAPI):
+            from pathlib import Path
+
             from prcrew.db import Base
+            db_path = settings.database_url.rsplit("///", 1)[-1]
+            if db_path and not db_path.startswith(":"):
+                Path(db_path).parent.mkdir(parents=True, exist_ok=True)
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
             yield
