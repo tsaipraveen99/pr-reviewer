@@ -52,4 +52,51 @@ describe("reduce", () => {
       finding: { agent: "mystery", file: "x.py", line: 1,
                  severity: "minor", claim: "c", evidence: "e" } }))).toEqual(base);
   });
+
+  it("synthesizes a finding id when the backend omits one", () => {
+    let v = initialView();
+    v = reduce(v, ev({ type: "finding", node: "correctness",
+      finding: { agent: "correctness", file: "x.py", line: 1,
+                 severity: "minor", claim: "a", evidence: "e" } }));
+    v = reduce(v, ev({ type: "finding", node: "correctness",
+      finding: { agent: "correctness", file: "y.py", line: 2,
+                 severity: "minor", claim: "b", evidence: "e" } }));
+    expect(v.agents.correctness.findings.map(f => f.id)).toEqual(["correctness-0", "correctness-1"]);
+  });
+
+  it("keeps a backend-supplied finding id", () => {
+    let v = initialView();
+    v = reduce(v, ev({ type: "finding", node: "correctness",
+      finding: { id: "correctness-7", agent: "correctness", file: "x.py", line: 1,
+                 severity: "minor", claim: "a", evidence: "e" } }));
+    expect(v.agents.correctness.findings[0].id).toBe("correctness-7");
+  });
+
+  it("applies a finding_verdict to the matching finding across agent cards", () => {
+    let v = initialView();
+    v = reduce(v, ev({ type: "finding", node: "security",
+      finding: { id: "security-0", agent: "security", file: "y.py", line: 2,
+                 severity: "critical", claim: "sqli", evidence: "+q" } }));
+    v = reduce(v, ev({ type: "finding_verdict", id: "security-0", verdict: "rejected",
+      severity: "minor", reason: "style nit" }));
+    const f = v.agents.security.findings[0];
+    expect(f.verdict).toBe("rejected");
+    expect(f.severity).toBe("minor");
+  });
+
+  it("ignores a finding_verdict for an unknown id", () => {
+    let v = initialView();
+    v = reduce(v, ev({ type: "finding", node: "security",
+      finding: { id: "security-0", agent: "security", file: "y.py", line: 2,
+                 severity: "critical", claim: "sqli", evidence: "+q" } }));
+    const before = v;
+    v = reduce(v, ev({ type: "finding_verdict", id: "does-not-exist", verdict: "confirmed",
+      severity: "critical", reason: "n/a" }));
+    expect(v).toEqual(before);
+  });
+
+  it("returns the view unchanged for an unrecognized event type instead of crashing", () => {
+    const base = initialView();
+    expect(reduce(base, ev({ type: "bogus_future_event", whatever: 1 }))).toEqual(base);
+  });
 });

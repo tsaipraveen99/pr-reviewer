@@ -27,13 +27,28 @@ export function reduce(view: RunView, ev: StreamEvent): RunView {
     case "finding": {
       const agent = view.agents[ev.node];
       if (!agent) return view;
+      // Old showcases predate finding ids; synthesize one client-side so
+      // verdict matching still has a key (those showcases have no
+      // finding_verdict events anyway, so this is harmless there).
+      const id = ev.finding.id ?? `${ev.node}-${agent.findings.length}`;
       return { ...view, agents: { ...view.agents,
-        [ev.node]: { ...agent, findings: [...agent.findings, ev.finding] } } };
+        [ev.node]: { ...agent, findings: [...agent.findings, { ...ev.finding, id }] } } };
     }
     case "verified":
       return { ...view, verifier: { ...view.verifier, confirmed: ev.confirmed, rejected: ev.rejected } };
+    case "finding_verdict": {
+      for (const [name, agent] of Object.entries(view.agents)) {
+        const idx = agent.findings.findIndex(f => f.id === ev.id);
+        if (idx === -1) continue;
+        const findings = [...agent.findings];
+        findings[idx] = { ...findings[idx], verdict: ev.verdict, severity: ev.severity };
+        return { ...view, agents: { ...view.agents, [name]: { ...agent, findings } } };
+      }
+      return view;
+    }
     case "review_complete": return { ...view, review: ev.review };
     case "done": return { ...view, done: true };
     case "run_failed": return { ...view, error: ev.error, done: true };
+    default: return view;
   }
 }
