@@ -57,10 +57,10 @@ def make_webhook_router(settings: Settings, session_factory,
         inst = payload["installation"]
         async with session_factory() as session:
             if action == "created":
-                session.add(Installation(id=inst["id"],
-                                         account_login=inst["account"]["login"]))
+                await session.merge(Installation(id=inst["id"],
+                                                 account_login=inst["account"]["login"]))
                 for repo in payload.get("repositories") or []:
-                    session.add(_repo_row(repo, inst["id"]))
+                    await session.merge(_repo_row(repo, inst["id"]))
             elif action == "deleted":
                 await session.execute(
                     delete(Repo).where(Repo.installation_id == inst["id"]))
@@ -81,7 +81,7 @@ def make_webhook_router(settings: Settings, session_factory,
         inst_id = payload["installation"]["id"]
         async with session_factory() as session:
             for repo in payload.get("repositories_added") or []:
-                session.add(_repo_row(repo, inst_id))
+                await session.merge(_repo_row(repo, inst_id))
             removed = [r["id"] for r in payload.get("repositories_removed") or []]
             if removed:
                 await session.execute(delete(Repo).where(Repo.id.in_(removed)))

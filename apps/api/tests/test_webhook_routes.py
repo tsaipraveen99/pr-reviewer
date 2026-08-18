@@ -31,7 +31,8 @@ def harness(tmp_path):
     router = make_webhook_router(settings, factory, enqueued.append, RecentDeliveries())
     app = FastAPI()
     app.include_router(router)
-    return app, factory, enqueued
+    yield app, factory, enqueued
+    asyncio.run(engine.dispose())
 
 
 def post(client, event: str, payload: dict, delivery: str = "d-1", secret: str = SECRET):
@@ -116,6 +117,57 @@ def test_installation_created_and_repo_upkeep(harness):
     inst, repo_ids = asyncio.run(_check())
     assert inst.id == 111 and inst.account_login == "tsaipraveen99"
     assert repo_ids == [999, 1000]
+
+
+def test_installation_created_redelivery_is_idempotent(harness):
+    # GitHub redelivers webhooks with a new delivery id but the same payload;
+    # the "created" branch must upsert (session.merge) rather than insert, or
+    # a redelivery raises IntegrityError -> 500.
+    app, factory, _ = harness
+    created = {"action": "created",
+               "installation": {"id": 111, "account": {"login": "tsaipraveen99"}},
+               "repositories": [{"id": 999, "full_name": "x/y"}]}
+    with TestClient(app) as client:
+        r1 = post(client, "installation", created, delivery="i-1")
+        r2 = post(client, "installation", created, delivery="i-2")
+    assert r1.status_code == 202
+    assert r2.status_code == 202
+
+    async def _check():
+        async with factory() as session:
+            insts = (await session.execute(select(Installation))).scalars().all()
+            repos = (await session.execute(select(Repo))).scalars().all()
+            return insts, repos
+    insts, repos = asyncio.run(_check())
+    assert len(insts) == 1
+    assert insts[0].id == 111 and insts[0].account_login == "tsaipraveen99"
+    assert len(repos) == 1
+    assert repos[0].id == 999
+
+
+def test_installation_repositories_added_redelivery_is_idempotent(harness):
+    app, factory, _ = harness
+    created = {"action": "created",
+               "installation": {"id": 111, "account": {"login": "u"}},
+               "repositories": []}
+    added = {"action": "added", "installation": {"id": 111},
+             "repositories_added": [{"id": 1000, "full_name": "x/z"}],
+             "repositories_removed": []}
+    with TestClient(app) as client:
+        post(client, "installation", created, delivery="i-1")
+        r1 = post(client, "installation_repositories", added, delivery="i-2")
+        r2 = post(client, "installation_repositories", added, delivery="i-3")
+    assert r1.status_code == 202
+    assert r2.status_code == 202
+
+    async def _check():
+        async with factory() as session:
+            repos = (await session.execute(
+                select(Repo).where(Repo.id == 1000))).scalars().all()
+            return repos
+    repos = asyncio.run(_check())
+    assert len(repos) == 1
+    assert repos[0].full_name == "x/z"
 
 
 def test_installation_deleted_removes_rows(harness):
