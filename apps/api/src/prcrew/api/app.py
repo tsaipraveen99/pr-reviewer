@@ -21,7 +21,8 @@ def client_ip(request: Request) -> str:
     return request.client.host if request.client else "127.0.0.1"
 
 
-def create_app(run_manager=None, github=None, settings: Settings | None = None) -> FastAPI:
+def create_app(run_manager=None, github=None, settings: Settings | None = None,
+               webhook_router=None) -> FastAPI:
     settings = settings or Settings()
     engine = None
     if run_manager is None:
@@ -69,4 +70,18 @@ def create_app(run_manager=None, github=None, settings: Settings | None = None) 
 
     from prcrew.api.routes import make_router
     app.include_router(make_router(run_manager, github, limiter, settings.daily_rate_limit))
+
+    if webhook_router is None and engine is not None:
+        from prcrew.api.webhook_routes import make_webhook_router
+        from prcrew.github.webhooks import RecentDeliveries
+        from prcrew.worker.celery_app import app as celery_app
+        session_factory = db.make_session_factory(engine)
+
+        def enqueue(kwargs: dict) -> None:
+            celery_app.send_task("prcrew.handle_pr_event", kwargs=kwargs)
+
+        webhook_router = make_webhook_router(settings, session_factory, enqueue,
+                                             RecentDeliveries())
+    if webhook_router is not None:
+        app.include_router(webhook_router)
     return app
