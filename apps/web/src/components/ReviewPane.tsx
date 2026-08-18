@@ -5,11 +5,14 @@ export function ReviewPane({ view }: { view: RunView }) {
   if (!view.error && !view.review) return null;
 
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-5">
-      {view.error && <p className="text-sm text-red-400">Run failed: {view.error}</p>}
+    <div className="panel p-5">
+      {view.error && <p className="text-sm text-err">Run failed: {view.error}</p>}
       {view.review && (
-        <div className="markdown">
-          <ReactMarkdown>{view.review}</ReactMarkdown>
+        <div>
+          <p className="eyebrow mb-2">Verdict</p>
+          <div className="markdown">
+            <ReactMarkdown>{view.review}</ReactMarkdown>
+          </div>
         </div>
       )}
     </div>

@@ -28,14 +28,14 @@ describe("AgentBoard", () => {
 
   it("shows a role description instead of 'No findings' on the intake card", () => {
     render(<AgentBoard view={initialView()} />);
-    const card = screen.getByText("intake").closest("div.rounded-lg") as HTMLElement;
+    const card = screen.getByText("intake").closest("div.panel") as HTMLElement;
     expect(within(card).queryByText(/no findings/i)).not.toBeInTheDocument();
     expect(within(card).getByText(/fetches pr context/i)).toBeInTheDocument();
   });
 
   it("shows a role description instead of 'No findings' on the synthesizer card", () => {
     render(<AgentBoard view={initialView()} />);
-    const card = screen.getByText("synthesizer").closest("div.rounded-lg") as HTMLElement;
+    const card = screen.getByText("synthesizer").closest("div.panel") as HTMLElement;
     expect(within(card).queryByText(/no findings/i)).not.toBeInTheDocument();
     expect(within(card).getByText(/writes the final review/i)).toBeInTheDocument();
   });
