@@ -1,8 +1,12 @@
 """Tests for the incremental store writer (prgraph.indexer.index_repo)."""
 
+import os
 import shutil
+import stat
+import sys
 from pathlib import Path
 
+import pytest
 from sqlalchemy import select
 
 from prgraph.db import (
@@ -98,17 +102,17 @@ class TestFullIndexPyrepo:
 
             edges = _edge_tuples(session, repo_id=1)
             assert edges == {
-                ("main", "pkg.models", "pkg.models", "import"),
-                ("main", "pkg.models.User", "pkg.models.User", "import"),
-                ("main", "pkg.models.helper", "pkg.models.helper", "import"),
-                ("main.run", "pkg.models.User", "pkg.models.User", "call"),
-                ("main.run", None, "u.save", "call"),
-                ("main.run", "pkg.models.helper", "pkg.models.helper", "call"),
-                ("main.run", "pkg.models.helper", "pkg.models.helper", "call"),
+                ("main", "pkg.models", "pkg.models", "imports"),
+                ("main", "pkg.models.User", "pkg.models.User", "imports"),
+                ("main", "pkg.models.helper", "pkg.models.helper", "imports"),
+                ("main.run", "pkg.models.User", "pkg.models.User", "calls"),
+                ("main.run", None, "u.save", "calls"),
+                ("main.run", "pkg.models.helper", "pkg.models.helper", "calls"),
+                ("main.run", "pkg.models.helper", "pkg.models.helper", "calls"),
                 # @property on User.label: decorator call, attributed to the
                 # enclosing class scope; "property" is a builtin, not a repo
                 # symbol, so it's unresolved.
-                ("pkg.models.User", None, "property", "call"),
+                ("pkg.models.User", None, "property", "calls"),
             }
 
 
@@ -126,11 +130,11 @@ class TestFullIndexTsrepo:
         with session_factory() as session:
             edges = _edge_tuples(session, repo_id=2)
             assert edges == {
-                ("src/app", "src/api.fetchUser", "src/api.fetchUser", "import"),
-                ("src/app", "src/api.Client", "src/api.Client", "import"),
-                ("src/app", "src/api.Client", "src/api.Client", "call"),
-                ("src/app.main", "src/api.fetchUser", "src/api.fetchUser", "call"),
-                ("src/app.main", None, "c.get", "call"),
+                ("src/app", "src/api.fetchUser", "src/api.fetchUser", "imports"),
+                ("src/app", "src/api.Client", "src/api.Client", "imports"),
+                ("src/app", "src/api.Client", "src/api.Client", "calls"),
+                ("src/app.main", "src/api.fetchUser", "src/api.fetchUser", "calls"),
+                ("src/app.main", None, "c.get", "calls"),
             }
 
 
@@ -151,14 +155,14 @@ class TestNoOpReindex:
         with session_factory() as session:
             edges = _edge_tuples(session, repo_id=1)
             assert edges == {
-                ("main", "pkg.models", "pkg.models", "import"),
-                ("main", "pkg.models.User", "pkg.models.User", "import"),
-                ("main", "pkg.models.helper", "pkg.models.helper", "import"),
-                ("main.run", "pkg.models.User", "pkg.models.User", "call"),
-                ("main.run", None, "u.save", "call"),
-                ("main.run", "pkg.models.helper", "pkg.models.helper", "call"),
-                ("main.run", "pkg.models.helper", "pkg.models.helper", "call"),
-                ("pkg.models.User", None, "property", "call"),
+                ("main", "pkg.models", "pkg.models", "imports"),
+                ("main", "pkg.models.User", "pkg.models.User", "imports"),
+                ("main", "pkg.models.helper", "pkg.models.helper", "imports"),
+                ("main.run", "pkg.models.User", "pkg.models.User", "calls"),
+                ("main.run", None, "u.save", "calls"),
+                ("main.run", "pkg.models.helper", "pkg.models.helper", "calls"),
+                ("main.run", "pkg.models.helper", "pkg.models.helper", "calls"),
+                ("pkg.models.User", None, "property", "calls"),
             }
 
 
@@ -197,14 +201,14 @@ class TestRenameHealing:
             # values are exactly what were parsed the first time -- "pkg.models.helper" --
             # and since no symbol has that qualified_name anymore, they're unresolved.
             assert edges == {
-                ("main", "pkg.models", "pkg.models", "import"),
-                ("main", "pkg.models.User", "pkg.models.User", "import"),
-                ("main", None, "pkg.models.helper", "import"),
-                ("main.run", "pkg.models.User", "pkg.models.User", "call"),
-                ("main.run", None, "u.save", "call"),
-                ("main.run", None, "pkg.models.helper", "call"),
-                ("main.run", None, "pkg.models.helper", "call"),
-                ("pkg.models.User", None, "property", "call"),
+                ("main", "pkg.models", "pkg.models", "imports"),
+                ("main", "pkg.models.User", "pkg.models.User", "imports"),
+                ("main", None, "pkg.models.helper", "imports"),
+                ("main.run", "pkg.models.User", "pkg.models.User", "calls"),
+                ("main.run", None, "u.save", "calls"),
+                ("main.run", None, "pkg.models.helper", "calls"),
+                ("main.run", None, "pkg.models.helper", "calls"),
+                ("pkg.models.User", None, "property", "calls"),
             }
 
 
@@ -243,7 +247,7 @@ class TestFileDeletion:
             # main.py's edges (3 imports + 4 calls) are gone; only the
             # unrelated property-decorator edge in pkg/models.py remains.
             edges = _edge_tuples(session, repo_id=1)
-            assert edges == {("pkg.models.User", None, "property", "call")}
+            assert edges == {("pkg.models.User", None, "property", "calls")}
 
 
 class TestRepoIsolation:
@@ -274,3 +278,231 @@ class TestRepoIsolation:
                 ).scalars()
             }
             assert repo1_names.isdisjoint(repo2_names)
+
+
+class TestErrorIsolation:
+    """F1: a single file's read/parse crash must not abort the whole run --
+    it's skipped, counted in IndexStats.errors, and every other file still
+    indexes normally.
+    """
+
+    def test_unicode_decode_error_is_isolated_and_counted(self, tmp_path):
+        root = tmp_path / "repo"
+        root.mkdir()
+        (root / "good.py").write_text("def good():\n    return 1\n")
+        # subscript-call target isn't a bare identifier/attribute, so the
+        # parser falls back to decoding the whole node's raw text; 0xEF is
+        # not valid standalone UTF-8, so that decode raises.
+        (root / "bad.py").write_bytes(
+            b'def run():\n    funcs = {}\n    funcs["na\xefve"]()\n'
+        )
+
+        session_factory = _make_session_factory(tmp_path)
+        stats = index_repo(session_factory, repo_id=1, root=root)
+
+        assert stats.errors == 1
+        assert stats.parsed == 1
+        assert stats.skipped == 0
+
+        with session_factory() as session:
+            paths = {
+                f.path
+                for f in session.execute(
+                    select(File).where(File.repo_id == 1)
+                ).scalars()
+            }
+            assert paths == {"good.py"}
+
+            symbol_names = {
+                s.qualified_name
+                for s in session.execute(
+                    select(Symbol).where(Symbol.repo_id == 1)
+                ).scalars()
+            }
+            assert symbol_names == {"good", "good.good"}
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="chmod-based unreadable files aren't meaningful on Windows",
+    )
+    @pytest.mark.skipif(
+        hasattr(os, "geteuid") and os.geteuid() == 0,
+        reason="root ignores file permission bits, so chmod 000 wouldn't crash the read",
+    )
+    def test_permission_error_is_isolated_and_counted(self, tmp_path):
+        root = tmp_path / "repo"
+        root.mkdir()
+        (root / "good.py").write_text("def good():\n    return 1\n")
+        unreadable = root / "unreadable.py"
+        unreadable.write_text("def secret():\n    return 1\n")
+        unreadable.chmod(0)
+
+        try:
+            session_factory = _make_session_factory(tmp_path)
+            stats = index_repo(session_factory, repo_id=1, root=root)
+
+            assert stats.errors == 1
+            assert stats.parsed == 1
+
+            with session_factory() as session:
+                paths = {
+                    f.path
+                    for f in session.execute(
+                        select(File).where(File.repo_id == 1)
+                    ).scalars()
+                }
+                assert paths == {"good.py"}
+        finally:
+            # Restore permissions so tmp_path cleanup doesn't fail.
+            unreadable.chmod(stat.S_IRUSR | stat.S_IWUSR)
+
+    def test_recursion_error_is_isolated_and_counted(self, tmp_path):
+        root = tmp_path / "repo"
+        root.mkdir()
+        (root / "good.js").write_text("function good() {\n  return 1;\n}\n")
+
+        # 5000 nested calls -- deep enough to blow the recursive
+        # _collect_calls walk's Python stack (default recursion limit 1000)
+        # well under the walker's own 1 MiB file-size cap.
+        depth = 5000
+        nested = (
+            "function f(x) { return x; }\n" + "f(" * depth + "1" + ")" * depth + ";\n"
+        )
+        (root / "vendor.min.js").write_text(nested)
+
+        session_factory = _make_session_factory(tmp_path)
+        stats = index_repo(session_factory, repo_id=1, root=root)
+
+        assert stats.errors == 1
+        assert stats.parsed == 1
+
+        with session_factory() as session:
+            paths = {
+                f.path
+                for f in session.execute(
+                    select(File).where(File.repo_id == 1)
+                ).scalars()
+            }
+            assert paths == {"good.js"}
+
+    def test_file_that_starts_parseable_then_fails_keeps_old_rows_untouched(
+        self, tmp_path
+    ):
+        """A file that indexed fine on run 1 and is edited into unparseable
+        content on run 2 keeps its run-1 File/Symbol rows exactly as they
+        were -- stale-but-present context beats losing it outright. (This
+        falls out of the try/except placement in index_repo: the parse
+        happens *before* the old File/Symbol rows are touched, so a raised
+        exception never reaches the delete/update code.)
+        """
+        root = tmp_path / "repo"
+        root.mkdir()
+        target = root / "flaky.py"
+        target.write_text("def flaky():\n    return 1\n")
+
+        session_factory = _make_session_factory(tmp_path)
+        first = index_repo(session_factory, repo_id=1, root=root)
+        assert first == IndexStats(
+            parsed=1, skipped=0, deleted=0, errors=0, symbols=2, edges=0
+        )
+
+        with session_factory() as session:
+            before_file = session.execute(
+                select(File).where(File.repo_id == 1, File.path == "flaky.py")
+            ).scalar_one()
+            before_hash = before_file.content_hash
+            before_symbol_names = {
+                s.qualified_name
+                for s in session.execute(
+                    select(Symbol).where(Symbol.repo_id == 1)
+                ).scalars()
+            }
+
+        # Corrupt it: same shape of crash as the UnicodeDecodeError case above.
+        target.write_bytes(b'def flaky():\n    funcs = {}\n    funcs["na\xefve"]()\n')
+
+        second = index_repo(session_factory, repo_id=1, root=root)
+        assert second.errors == 1
+        assert second.parsed == 0
+        assert second.skipped == 0
+
+        with session_factory() as session:
+            after_file = session.execute(
+                select(File).where(File.repo_id == 1, File.path == "flaky.py")
+            ).scalar_one()
+            # Row untouched: same stale hash as before the failed re-parse.
+            assert after_file.content_hash == before_hash
+
+            after_symbol_names = {
+                s.qualified_name
+                for s in session.execute(
+                    select(Symbol).where(Symbol.repo_id == 1)
+                ).scalars()
+            }
+            assert after_symbol_names == before_symbol_names
+
+
+class TestBareNameHealingGuard:
+    """F4: the indexer-level unique-bare-name fallback in `_resolve_call_dst`
+    must store the RESOLVED symbol's real qualified_name (not the bare
+    callee text), and the healing pass must never try to heal a row whose
+    dst_qualified_name is still just a bare name -- otherwise an unrelated,
+    later-added same-named symbol can silently "heal" onto it.
+    """
+
+    def test_by_name_resolved_edge_stores_the_qualified_name(self, tmp_path):
+        root = tmp_path / "repo"
+        root.mkdir()
+        # `a.helper` is the only Symbol anywhere named "helper".
+        (root / "a.py").write_text("def helper():\n    return 1\n")
+        # b.make's `helper()` call is bare, not a local def of b, not an
+        # import alias in b -- the parser leaves it unresolved, so the
+        # indexer's unique-bare-name fallback is what resolves it.
+        (root / "b.py").write_text(
+            "def make():\n    helper = something()\n    helper()\n"
+        )
+
+        session_factory = _make_session_factory(tmp_path)
+        index_repo(session_factory, repo_id=1, root=root)
+
+        with session_factory() as session:
+            edges = _edge_tuples(session, repo_id=1)
+            # dst_qualified_name is "a.helper" (the resolved symbol's real
+            # qualified name), not the bare callee text "helper".
+            assert ("b.make", "a.helper", "a.helper", "calls") in edges
+            assert not any(dst_q == "helper" for _, _, dst_q, _ in edges)
+
+    def test_unresolved_bare_name_call_is_not_healed_onto_a_later_added_module(
+        self, tmp_path
+    ):
+        root = tmp_path / "repo"
+        root.mkdir()
+        # `utils()` is a bare call to a name that resolves to nothing in the
+        # repo at index time: not a local def, not an import alias, and no
+        # Symbol anywhere is named "utils" yet.
+        (root / "b.py").write_text(
+            "def make():\n    utils = get_closure()\n    utils()\n"
+        )
+
+        session_factory = _make_session_factory(tmp_path)
+        index_repo(session_factory, repo_id=1, root=root)
+
+        with session_factory() as session:
+            edges = _edge_tuples(session, repo_id=1)
+            assert ("b.make", None, "utils", "calls") in edges
+
+        # Now add utils.py -- its module Def's qualified_name is exactly
+        # "utils", the reviewer's confirmed false-positive scenario: a
+        # bare-name-stored dangling edge must NOT heal onto it.
+        (root / "utils.py").write_text("def unrelated():\n    return 1\n")
+
+        index_repo(session_factory, repo_id=1, root=root)
+
+        with session_factory() as session:
+            edges = _edge_tuples(session, repo_id=1)
+            # Still unresolved -- not fabricated onto the new "utils" module.
+            assert ("b.make", None, "utils", "calls") in edges
+            assert not any(
+                src == "b.make" and dst_q == "utils" and dst is not None
+                for src, dst, dst_q, _kind in edges
+            )

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from prgraph.db import Edge, File, Symbol
@@ -27,6 +27,9 @@ class IndexStats:
             row, so they were left untouched.
         deleted: Number of File rows removed because their path no longer
             exists on disk.
+        errors: Number of files whose read or parse raised (unreadable,
+            undecodable, or pathologically nested source) and were skipped
+            rather than aborting the whole run.
         symbols: Total Symbol row count for this repo after the run.
         edges: Total Edge row count for this repo after the run.
     """
@@ -36,6 +39,7 @@ class IndexStats:
     deleted: int
     symbols: int
     edges: int
+    errors: int = 0
 
 
 def _parse_file(relpath: str, source: bytes, lang: str) -> FileIR:
@@ -59,7 +63,10 @@ def _resolve_import_dst(imp: Import, by_qualified: dict[str, int]) -> int | None
 
 
 def _resolve_call_dst(
-    call: Call, by_qualified: dict[str, int], by_name: dict[str, list[int]]
+    call: Call,
+    by_qualified: dict[str, int],
+    by_name: dict[str, list[int]],
+    qualified_by_id: dict[int, str],
 ) -> tuple[int | None, str]:
     """Resolve a Call's destination Symbol id and the dst_qualified_name to store.
 
@@ -67,6 +74,14 @@ def _resolve_call_dst(
     a *bare* (dot-free) callee_name gets one more try: if exactly one Symbol
     in the repo has that name, resolve to it. Dotted (attribute/receiver)
     callee names never get this fallback -- they stay unresolved.
+
+    F4: when the by_name fallback resolves, the stored dst_qualified_name is
+    the RESOLVED symbol's real qualified_name, not the bare callee text --
+    storing the bare name would let a later-added, unrelated same-named
+    symbol "heal" onto this edge (the healing pass matches dst_qualified_name
+    against qualified_name; see the healing loop below). Unresolved calls
+    (bare or dotted) still store the raw callee/text -- there's no symbol to
+    take a real qualified_name from.
     """
     if call.resolved_qualified is not None:
         return by_qualified.get(call.resolved_qualified), call.resolved_qualified
@@ -74,7 +89,8 @@ def _resolve_call_dst(
     if "." not in call.callee_name:
         candidates = by_name.get(call.callee_name, [])
         if len(candidates) == 1:
-            return candidates[0], call.callee_name
+            resolved_id = candidates[0]
+            return resolved_id, qualified_by_id[resolved_id]
 
     return None, call.callee_name
 
@@ -123,18 +139,45 @@ def index_repo(
 
         parsed = 0
         skipped = 0
+        errors = 0
         staged: list[FileIR] = []
 
         for relpath, lang in entries:
-            data = (root / relpath).read_bytes()
-            new_hash = content_hash(data)
+            # Read+parse is isolated per file: a single bad file (unreadable,
+            # non-UTF8 in a decode path, or pathologically nested enough to
+            # blow the parser's recursion) must not abort the whole run. It's
+            # skipped and counted instead. Note this try wraps read_bytes()
+            # too -- the walker's stat guard only screens by size, not
+            # readability, so PermissionError surfaces here.
+            try:
+                data = (root / relpath).read_bytes()
+                new_hash = content_hash(data)
 
-            existing = existing_files.get(relpath)
-            if existing is not None and existing.content_hash == new_hash:
-                skipped += 1
+                existing = existing_files.get(relpath)
+                if existing is not None and existing.content_hash == new_hash:
+                    skipped += 1
+                    continue
+
+                file_ir = _parse_file(relpath, data, lang)
+            except Exception:  # noqa: BLE001
+                # Deliberately not narrowed to a tuple of exception types:
+                # confirmed crash classes are UnicodeDecodeError,
+                # PermissionError, and RecursionError, but the parsers are
+                # third-party tree-sitter grammars over untrusted repo
+                # content run inside a worker -- any other exception here
+                # should degrade to "skip this file," not take down the
+                # whole indexing run.
+                #
+                # Old rows intentionally untouched on failure (fail-safe:
+                # stale context beats lost context): this happens naturally
+                # because the delete-old-Symbols/upsert-File block below
+                # never runs when the try above raises -- existing.content_hash
+                # is left as whatever it was after the last successful parse,
+                # so a fixed-up file gets re-attempted on every future run
+                # instead of being permanently treated as unchanged.
+                errors += 1
                 continue
 
-            file_ir = _parse_file(relpath, data, lang)
             parsed += 1
 
             if existing is not None:
@@ -190,9 +233,11 @@ def index_repo(
         )
         by_qualified: dict[str, int] = {}
         by_name: dict[str, list[int]] = {}
+        qualified_by_id: dict[int, str] = {}
         for sym in all_symbols:
             by_qualified.setdefault(sym.qualified_name, sym.id)
             by_name.setdefault(sym.name, []).append(sym.id)
+            qualified_by_id[sym.id] = sym.qualified_name
 
         for file_ir in staged:
             module_symbol_id = by_qualified.get(file_ir.module_qualified)
@@ -206,7 +251,7 @@ def index_repo(
                         src_symbol_id=module_symbol_id,
                         dst_symbol_id=_resolve_import_dst(imp, by_qualified),
                         dst_qualified_name=imp.target_qualified,
-                        kind="import",
+                        kind="imports",
                     )
                 )
 
@@ -215,7 +260,7 @@ def index_repo(
                 if src_id is None:
                     continue
                 dst_id, dst_qualified_name = _resolve_call_dst(
-                    call, by_qualified, by_name
+                    call, by_qualified, by_name, qualified_by_id
                 )
                 session.add(
                     Edge(
@@ -223,7 +268,7 @@ def index_repo(
                         src_symbol_id=src_id,
                         dst_symbol_id=dst_id,
                         dst_qualified_name=dst_qualified_name,
-                        kind="call",
+                        kind="calls",
                     )
                 )
 
@@ -232,17 +277,31 @@ def index_repo(
         # Healing pass: repair any edge left dangling (SET NULL by a
         # cross-file symbol delete above, or an unresolved forward reference
         # from a prior run) now that every symbol exists.
+        #
+        # F4: only attempt to heal rows whose dst_qualified_name is plausibly
+        # a qualified name (contains a "."). A bare name (no dot) means the
+        # edge was never resolved to a real symbol -- by_name-resolved edges
+        # now store the real qualified_name (see _resolve_call_dst), so a
+        # bare dst_qualified_name here always means "genuinely unresolved."
+        # Matching it against qualified_name anyway would let an unrelated,
+        # later-added same-named symbol (e.g. a new top-level module whose
+        # own qualified_name equals that bare name) silently "heal" onto it
+        # -- a fabricated edge, not a repair. Bare-name rows stay unhealed.
         dangling = session.execute(
             select(Edge).where(Edge.repo_id == repo_id, Edge.dst_symbol_id.is_(None))
         ).scalars()
         for edge in dangling:
+            if "." not in edge.dst_qualified_name:
+                continue
             match = by_qualified.get(edge.dst_qualified_name)
             if match is not None:
                 edge.dst_symbol_id = match
 
-        total_edges = (
-            session.execute(select(Edge).where(Edge.repo_id == repo_id)).scalars().all()
-        )
+        # Count, don't load: this repo's edge count can be large, and the
+        # rows themselves aren't used for anything here.
+        total_edges = session.execute(
+            select(func.count()).select_from(Edge).where(Edge.repo_id == repo_id)
+        ).scalar_one()
 
         session.commit()
 
@@ -250,6 +309,7 @@ def index_repo(
             parsed=parsed,
             skipped=skipped,
             deleted=deleted,
+            errors=errors,
             symbols=len(all_symbols),
-            edges=len(total_edges),
+            edges=total_edges,
         )

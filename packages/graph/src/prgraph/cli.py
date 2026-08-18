@@ -102,7 +102,7 @@ def _cmd_index(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int
     stats = index_repo(session_factory, repo_id=args.repo_id, root=root)
     print(
         f"parsed={stats.parsed} skipped={stats.skipped} deleted={stats.deleted} "
-        f"symbols={stats.symbols} edges={stats.edges}"
+        f"errors={stats.errors} symbols={stats.symbols} edges={stats.edges}"
     )
     return 0
 

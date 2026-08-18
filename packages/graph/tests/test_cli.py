@@ -29,7 +29,7 @@ class TestIndexCommand:
 
         assert exit_code == 0
         out = capsys.readouterr().out.strip()
-        assert out == "parsed=3 skipped=0 deleted=0 symbols=9 edges=8"
+        assert out == "parsed=3 skipped=0 deleted=0 errors=0 symbols=9 edges=8"
 
     def test_index_unknown_path_exits_2(self, tmp_path, capsys):
         missing = tmp_path / "does-not-exist"
