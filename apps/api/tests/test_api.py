@@ -186,3 +186,46 @@ def test_rate_limit_returns_429_after_quota():
         assert c.post("/reviews", json=url).status_code == 202
         assert c.post("/reviews", json=url).status_code == 202
         assert c.post("/reviews", json=url).status_code == 429
+
+
+def test_lifespan_disposes_engine(monkeypatch, tmp_path):
+    from starlette.testclient import TestClient
+
+    from prcrew import db as db_mod
+    from prcrew.api.app import create_app
+
+    disposed = []
+    real_make_engine = db_mod.make_engine
+
+    def tracking_make_engine(url):
+        engine = real_make_engine(url)
+        orig_dispose = engine.dispose
+
+        class EngineWrapper:
+            def __init__(self):
+                pass
+
+            async def dispose(self, close=True):
+                disposed.append(True)
+                await orig_dispose(close)
+
+            def __getattr__(self, name):
+                return getattr(engine, name)
+
+            async def __aenter__(self):
+                return await engine.__aenter__()
+
+            async def __aexit__(self, *args):
+                return await engine.__aexit__(*args)
+
+            def begin(self):
+                return engine.begin()
+
+        return EngineWrapper()
+
+    monkeypatch.setattr(db_mod, "make_engine", tracking_make_engine)
+    monkeypatch.setenv("DATABASE_URL", f"sqlite+aiosqlite:///{tmp_path}/app.db")
+    app = create_app()
+    with TestClient(app):
+        pass
+    assert disposed == [True]

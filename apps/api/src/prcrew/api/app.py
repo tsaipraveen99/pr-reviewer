@@ -25,34 +25,36 @@ def create_app(run_manager=None, github=None, settings: Settings | None = None) 
     settings = settings or Settings()
     engine = None
     if run_manager is None:
+        from prcrew import db
         from prcrew.api.review_store import ReviewStore
         from prcrew.api.runs import RunManager
-        from prcrew.db import make_engine, make_session_factory
         from prcrew.graph.build import build_graph
         from prcrew.llm import AgentLLM
-        engine = make_engine(settings.database_url)
+        engine = db.make_engine(settings.database_url)
         run_manager = RunManager(
             graph=build_graph(AgentLLM(settings.specialist_model), AgentLLM(settings.synth_model)),
-            store=ReviewStore(make_session_factory(engine)))
+            store=ReviewStore(db.make_session_factory(engine)))
     if github is None:
         from prcrew.github.client import GitHubClient
         github = GitHubClient(token=settings.github_token)
 
     lifespan = None
-    if engine is not None and settings.database_url.startswith("sqlite"):
-        # Local-dev convenience only: production schema is owned by alembic
-        # migrations. Best-effort so `uv run uvicorn` just works out of the box.
+    if engine is not None:
         @asynccontextmanager
         async def lifespan(app: FastAPI):
-            from pathlib import Path
+            if settings.database_url.startswith("sqlite"):
+                # Local-dev convenience only: production schema is owned by
+                # alembic migrations.
+                from pathlib import Path
 
-            from prcrew.db import Base
-            db_path = settings.database_url.rsplit("///", 1)[-1]
-            if db_path and not db_path.startswith(":"):
-                Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-            async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
+                from prcrew.db import Base
+                db_path = settings.database_url.rsplit("///", 1)[-1]
+                if db_path and not db_path.startswith(":"):
+                    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+                async with engine.begin() as conn:
+                    await conn.run_sync(Base.metadata.create_all)
             yield
+            await engine.dispose()
 
     app = FastAPI(title="pr-crew", lifespan=lifespan)
     app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins.split(","),

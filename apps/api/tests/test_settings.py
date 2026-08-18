@@ -14,3 +14,29 @@ def test_database_url_env(monkeypatch):
 def test_redis_url_default(monkeypatch):
     monkeypatch.delenv("REDIS_URL", raising=False)
     assert Settings().redis_url == "redis://localhost:6379/0"
+
+
+def test_app_settings_defaults(monkeypatch):
+    for var in ("GITHUB_APP_ID", "GITHUB_APP_PRIVATE_KEY", "GITHUB_WEBHOOK_SECRET",
+                "REVIEWS_ENABLED", "ALLOWED_INSTALLATION_IDS"):
+        monkeypatch.delenv(var, raising=False)
+    s = Settings()
+    assert s.github_app_id == ""
+    assert s.github_app_private_key == ""
+    assert s.github_webhook_secret == ""
+    assert s.reviews_enabled is True
+    assert s.allowed_installations() == set()
+
+
+def test_app_settings_from_env(monkeypatch):
+    monkeypatch.setenv("GITHUB_APP_ID", "12345")
+    monkeypatch.setenv("REVIEWS_ENABLED", "false")
+    monkeypatch.setenv("ALLOWED_INSTALLATION_IDS", "111, 222")
+    s = Settings()
+    assert s.github_app_id == "12345"
+    assert s.reviews_enabled is False
+    assert s.allowed_installations() == {111, 222}
+
+
+def test_run_db_path_removed():
+    assert not hasattr(Settings(), "run_db_path")
