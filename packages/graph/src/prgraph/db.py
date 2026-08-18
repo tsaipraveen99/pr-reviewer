@@ -4,6 +4,7 @@ from sqlalchemy import (
     BigInteger,
     Column,
     DateTime,
+    Engine,
     ForeignKey,
     Index,
     Integer,
@@ -11,10 +12,11 @@ from sqlalchemy import (
     create_engine,
     event,
 )
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-# Create the declarative base for ORM models
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+    """Declarative base for ORM models."""
 
 
 class File(Base):
@@ -99,14 +101,14 @@ class Edge(Base):
     )
 
 
-def make_engine(url: str = "sqlite:///"):
+def make_engine(url: str) -> Engine:
     """Create a SQLAlchemy engine.
 
     Args:
-        url: Database URL. Defaults to in-memory SQLite.
+        url: Database URL (required; caller must provide sqlite:/// or other URL).
 
     Returns:
-        A SQLAlchemy Engine instance.
+        A SQLAlchemy Engine instance with foreign key constraints enabled for SQLite.
     """
     engine = create_engine(url)
 
@@ -120,7 +122,7 @@ def make_engine(url: str = "sqlite:///"):
     return engine
 
 
-def make_session_factory(engine):
+def make_session_factory(engine: Engine) -> sessionmaker[Session]:
     """Create a session factory for the given engine.
 
     Args:
@@ -132,7 +134,7 @@ def make_session_factory(engine):
     return sessionmaker(bind=engine, expire_on_commit=False)
 
 
-def create_schema(engine):
+def create_schema(engine: Engine) -> None:
     """Create all tables in the database.
 
     Args:
