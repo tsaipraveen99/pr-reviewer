@@ -37,7 +37,11 @@ def test_parse_python_models_defs():
     assert ir.module_qualified == "pkg.models"
     assert ir.imports == []
     assert ir.calls == [
-        Call(caller_qualified="pkg.models.User", callee_name="property", resolved_qualified=None),
+        Call(
+            caller_qualified="pkg.models.User",
+            callee_name="property",
+            resolved_qualified=None,
+        ),
     ]
 
     assert ir.defs == [

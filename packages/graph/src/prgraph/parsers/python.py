@@ -231,7 +231,11 @@ def _append_call(
     """Append a Call for `callee_name`, caller-qualified from `ancestors`/`module`."""
     caller_qualified = ".".join([module, *ancestors]) if ancestors else module
     calls.append(
-        Call(caller_qualified=caller_qualified, callee_name=callee_name, resolved_qualified=resolved)
+        Call(
+            caller_qualified=caller_qualified,
+            callee_name=callee_name,
+            resolved_qualified=resolved,
+        )
     )
 
 
@@ -283,14 +287,20 @@ def _collect_calls(
                     # `@app.route("/foo")` etc: the decorator's expression is
                     # itself a `call` node (or something stranger); the generic
                     # scan below picks it up, still in the enclosing scope.
-                    _collect_calls(deco, ancestors, module, calls, local_defs, alias_map)
+                    _collect_calls(
+                        deco, ancestors, module, calls, local_defs, alias_map
+                    )
             name_node = inner.child_by_field_name("name")
             name = _text(name_node) if name_node is not None else ""
-            _collect_calls(inner, [*ancestors, name], module, calls, local_defs, alias_map)
+            _collect_calls(
+                inner, [*ancestors, name], module, calls, local_defs, alias_map
+            )
         elif child.type in _DEF_NODE_TYPES:
             name_node = child.child_by_field_name("name")
             name = _text(name_node) if name_node is not None else ""
-            _collect_calls(child, [*ancestors, name], module, calls, local_defs, alias_map)
+            _collect_calls(
+                child, [*ancestors, name], module, calls, local_defs, alias_map
+            )
         else:
             _collect_calls(child, ancestors, module, calls, local_defs, alias_map)
 
@@ -327,7 +337,9 @@ def parse_python(relpath: str, source: bytes) -> FileIR:
     imports, alias_map = _collect_imports(tree.root_node, module, _is_package(relpath))
 
     local_defs = {
-        d.name for d in defs if d.kind != "module" and d.qualified_name == f"{module}.{d.name}"
+        d.name
+        for d in defs
+        if d.kind != "module" and d.qualified_name == f"{module}.{d.name}"
     }
     calls: list[Call] = []
     _collect_calls(tree.root_node, [], module, calls, local_defs, alias_map)

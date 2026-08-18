@@ -14,17 +14,19 @@ LANG_BY_EXT = {
 }
 
 # Set of directory names to ignore at any depth
-IGNORE_DIRS = frozenset({
-    ".git",
-    "node_modules",
-    ".venv",
-    "venv",
-    "dist",
-    "build",
-    "__pycache__",
-    ".next",
-    "coverage",
-})
+IGNORE_DIRS = frozenset(
+    {
+        ".git",
+        "node_modules",
+        ".venv",
+        "venv",
+        "dist",
+        "build",
+        "__pycache__",
+        ".next",
+        "coverage",
+    }
+)
 
 # Maximum file size in bytes (1 MiB)
 MAX_FILE_SIZE = 1048576

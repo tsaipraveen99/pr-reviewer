@@ -54,9 +54,19 @@ def test_parse_python_main_imports_and_calls():
         Import("pkg.models", "pkg.models", "pkg.models"),
     ]
     expected_calls = [
-        Call(caller_qualified="main.run", callee_name="User", resolved_qualified="pkg.models.User"),
-        Call(caller_qualified="main.run", callee_name="u.save", resolved_qualified=None),
-        Call(caller_qualified="main.run", callee_name="h", resolved_qualified="pkg.models.helper"),
+        Call(
+            caller_qualified="main.run",
+            callee_name="User",
+            resolved_qualified="pkg.models.User",
+        ),
+        Call(
+            caller_qualified="main.run", callee_name="u.save", resolved_qualified=None
+        ),
+        Call(
+            caller_qualified="main.run",
+            callee_name="h",
+            resolved_qualified="pkg.models.helper",
+        ),
         Call(
             caller_qualified="main.run",
             callee_name="pkg.models.helper",
@@ -64,8 +74,12 @@ def test_parse_python_main_imports_and_calls():
         ),
     ]
 
-    assert sorted(ir.imports, key=_sort_key_import) == sorted(expected_imports, key=_sort_key_import)
-    assert sorted(ir.calls, key=_sort_key_call) == sorted(expected_calls, key=_sort_key_call)
+    assert sorted(ir.imports, key=_sort_key_import) == sorted(
+        expected_imports, key=_sort_key_import
+    )
+    assert sorted(ir.calls, key=_sort_key_call) == sorted(
+        expected_calls, key=_sort_key_call
+    )
 
 
 def test_parse_python_decorator_calls_attribute_to_enclosing_scope():
@@ -81,7 +95,7 @@ def test_parse_python_decorator_calls_attribute_to_enclosing_scope():
     recorded, attributed to the enclosing class `Widget` (not to `label`). `property` is
     a builtin with no import or local def backing it, so it resolves to None.
     """
-    source = b'''import app
+    source = b"""import app
 
 
 @app.route("/x")
@@ -93,12 +107,22 @@ class Widget:
     @property
     def label(self):
         return "w"
-'''
+"""
     ir = parse_python("svc.py", source)
 
-    assert Call(
-        caller_qualified="svc", callee_name="app.route", resolved_qualified="app.route"
-    ) in ir.calls
-    assert Call(
-        caller_qualified="svc.Widget", callee_name="property", resolved_qualified=None
-    ) in ir.calls
+    assert (
+        Call(
+            caller_qualified="svc",
+            callee_name="app.route",
+            resolved_qualified="app.route",
+        )
+        in ir.calls
+    )
+    assert (
+        Call(
+            caller_qualified="svc.Widget",
+            callee_name="property",
+            resolved_qualified=None,
+        )
+        in ir.calls
+    )
