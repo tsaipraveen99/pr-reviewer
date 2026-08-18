@@ -19,6 +19,11 @@ dependencies = [
 requires = ["uv_build>=0.11.16,<0.12.0"]
 build-backend = "uv_build"
 
+[tool.ruff]
+# Fixture sources are test data with exact, hand-specified contents (see task briefs);
+# they are not meant to conform to this package's style.
+extend-exclude = ["tests/fixtures"]
+
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
