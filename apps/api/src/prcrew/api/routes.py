@@ -29,6 +29,8 @@ def make_router(run_manager: RunManager, github, limiter, limit_str: str) -> API
         except PRTooLargeError as e:
             raise HTTPException(413, str(e))
         except GitHubError as e:
+            if e.status == 404:
+                raise HTTPException(404, "Pull request not found")
             raise HTTPException(502, f"GitHub API error: {e.detail}")
         return {"run_id": await run_manager.start(ctx)}
 
@@ -56,8 +58,13 @@ def make_router(run_manager: RunManager, github, limiter, limit_str: str) -> API
                         return
                 if run.status != "running" and idx >= len(run.events):
                     return
-                await run.queue.get()  # wait for next live event
-                # loop re-reads run.events from idx, so nothing is skipped
+                # Wait for the next live event; notify_all() wakes every
+                # concurrent consumer, and the loop re-reads run.events from
+                # idx, so nothing is skipped.
+                async with run.condition:
+                    await run.condition.wait_for(
+                        lambda i=idx: i < len(run.events) or run.status != "running"
+                    )
         return EventSourceResponse(gen())
 
     @router.get("/showcases")
