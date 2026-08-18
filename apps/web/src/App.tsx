@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { AgentBoard } from "./components/AgentBoard";
 import { PRForm } from "./components/PRForm";
 import { ReviewPane } from "./components/ReviewPane";
@@ -7,7 +8,14 @@ import { useReviewRun } from "./hooks/useReviewRun";
 const GITHUB_URL: string = import.meta.env.VITE_GITHUB_URL ?? "https://github.com/tsaipraveen99/pr-reviewer";
 
 function App() {
-  const { view, running, start, replay } = useReviewRun();
+  const { view, running, start, replay, runId, prUrl, loadFromHash } = useReviewRun();
+
+  // A `#r=<id>` hash is a shareable permalink to a finished run; load it
+  // once on mount and rebuild the board from its stored events.
+  useEffect(() => {
+    const match = /^#r=(.+)$/.exec(location.hash);
+    if (match) loadFromHash(match[1]);
+  }, [loadFromHash]);
 
   return (
     <div className="app-shell">
@@ -24,11 +32,11 @@ function App() {
           </a>
         </header>
 
-        <PRForm running={running} onSubmit={start} />
+        <PRForm running={running} onSubmit={start} initialUrl={prUrl} />
         {/* The verdict sits directly under the form, above the board, so it's
             visible without scrolling past the specialist cards once a run
             completes. */}
-        <ReviewPane view={view} />
+        <ReviewPane view={view} runId={runId} />
         <AgentBoard view={view} />
         <ShowcaseGallery running={running} onReplay={replay} />
       </div>

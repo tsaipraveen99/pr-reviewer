@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { initialView, reduce } from "./reducer";
+import { initialView, reduce, reduceAll } from "./reducer";
 import type { StreamEvent } from "./types";
 
 const ev = (e: object) => e as StreamEvent;
@@ -120,6 +120,25 @@ describe("reduce", () => {
       usage: { input_tokens: 5, output_tokens: 5 }, cost_usd: 0.001 }));
     expect(v.verifier.usage).toEqual({ input_tokens: 5, output_tokens: 5 });
     expect(v.verifier.cost_usd).toBe(0.001);
+  });
+
+  it("reduceAll instantly folds a stored event list into a finished view (permalink replay)", () => {
+    const events: StreamEvent[] = [
+      { type: "node_started", node: "correctness" },
+      { type: "finding", node: "correctness",
+        finding: { agent: "correctness", file: "x.py", line: 1, severity: "major",
+                   claim: "bug", evidence: "+x" } },
+      { type: "node_finished", node: "correctness",
+        usage: { input_tokens: 100, output_tokens: 50 }, cost_usd: 0.00105 },
+      { type: "review_complete", review: "## R" },
+      { type: "done" },
+    ];
+    const v = reduceAll(initialView(), events);
+    expect(v.agents.correctness.status).toBe("done");
+    expect(v.agents.correctness.findings).toHaveLength(1);
+    expect(v.review).toBe("## R");
+    expect(v.done).toBe(true);
+    expect(v.totals.costUsd).toBe(0.00105);
   });
 
   it("returns the view unchanged for an unrecognized event type instead of crashing", () => {

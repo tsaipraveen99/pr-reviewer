@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiError, fetchReview, fetchShowcase, reviewResultToEvents, startReview, streamUrl } from "../lib/api";
-import { initialView, reduce } from "../lib/reducer";
+import { ApiError, fetchReview, fetchRun, fetchShowcase, reviewResultToEvents, startReview, streamUrl } from "../lib/api";
+import { initialView, reduce, reduceAll } from "../lib/reducer";
 import type { RunView, StreamEvent } from "../lib/types";
 
 const TERMINAL = new Set(["done", "run_failed"]);
@@ -12,6 +12,11 @@ const MAX_RECONNECTS = 3;
 export function useReviewRun() {
   const [view, setView] = useState<RunView>(initialView);
   const [running, setRunning] = useState(false);
+  // Set only by `start()`, for a live run; `replay()` (showcase) and
+  // `loadFromHash()` (permalink) leave it null so the Share button (which
+  // is for sharing a just-completed *live* run) stays hidden for those.
+  const [runId, setRunId] = useState<string | null>(null);
+  const [prUrl, setPrUrl] = useState<string | undefined>(undefined);
   const source = useRef<EventSource | null>(null);
   const timers = useRef<number[]>([]);
   const terminalReached = useRef(false);
@@ -75,7 +80,7 @@ export function useReviewRun() {
     };
   }, [dispatch, stop]);
 
-  const start = useCallback(async (prUrl: string) => {
+  const start = useCallback(async (prUrlInput: string) => {
     stop();
     terminalReached.current = false;
     generation.current += 1;
@@ -83,15 +88,17 @@ export function useReviewRun() {
     const gen = generation.current;
     setView(initialView());
     setRunning(true);
-    let runId: string;
+    setRunId(null);
+    let id: string;
     try {
-      ({ run_id: runId } = await startReview(prUrl));
+      ({ run_id: id } = await startReview(prUrlInput));
     } catch (err) {
       if (generation.current === gen) stop(); // re-enable the UI
       throw err; // PRForm's catch displays the ApiError message
     }
     if (generation.current !== gen) return; // superseded while awaiting
-    attach(runId, gen);
+    setRunId(id);
+    attach(id, gen);
   }, [attach, stop]);
 
   const replay = useCallback(async (slug: string) => {
@@ -100,6 +107,7 @@ export function useReviewRun() {
     const gen = generation.current;
     setView(initialView());
     setRunning(true);
+    setRunId(null); // a showcase replay is not a shareable live run
     let sc;
     try {
       sc = await fetchShowcase(slug);
@@ -119,5 +127,29 @@ export function useReviewRun() {
       () => dispatch({ type: "done" }), maxMs * scale + 100));
   }, [dispatch, stop]);
 
-  return { view, running, start, replay };
+  /** Load a run by id (from a `#r=<id>` permalink hash) and instantly
+   * rebuild the board from its stored events -- no timer pacing, unlike
+   * `replay()`. Not found / network error surfaces as an inline view.error. */
+  const loadFromHash = useCallback(async (id: string) => {
+    stop();
+    generation.current += 1;
+    const gen = generation.current;
+    setView(initialView());
+    setRunning(false);
+    setRunId(null);
+    let record;
+    try {
+      record = await fetchRun(id);
+    } catch (err) {
+      if (generation.current !== gen) return; // superseded while awaiting
+      const message = err instanceof ApiError ? err.message : "Could not load that run. Try again.";
+      setView(v => ({ ...v, error: message }));
+      return;
+    }
+    if (generation.current !== gen) return; // superseded while awaiting
+    setPrUrl(record.pr_url);
+    setView(reduceAll(initialView(), record.events));
+  }, [stop]);
+
+  return { view, running, start, replay, runId, prUrl, loadFromHash };
 }

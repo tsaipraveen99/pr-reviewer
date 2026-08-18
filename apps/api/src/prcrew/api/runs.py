@@ -2,7 +2,9 @@ import asyncio
 import logging
 import uuid
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
+from prcrew.api.store import RunStore
 from prcrew.models import PRContext
 
 logger = logging.getLogger(__name__)
@@ -16,6 +18,8 @@ MAX_RUNS = 200
 @dataclass
 class Run:
     id: str
+    pr_url: str = ""
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     status: str = "running"
     events: list[dict] = field(default_factory=list)
     # Broadcast primitive: every emit appends to `events` then notify_all()s,
@@ -26,15 +30,28 @@ class Run:
 
 
 class RunManager:
-    def __init__(self, graph):
+    def __init__(self, graph, store: RunStore | None = None):
         self._graph = graph
         self._runs: dict[str, Run] = {}
+        self._store = store
 
     def get(self, run_id: str) -> Run | None:
         return self._runs.get(run_id)
 
-    async def start(self, pr_context: PRContext) -> str:
-        run = Run(id=uuid.uuid4().hex)
+    async def fetch(self, run_id: str) -> dict | None:
+        """Look up a run's status/pr_url/result/events -- memory first (a
+        live or recently-finished run), falling back to the store (an old
+        run this process never saw, e.g. after a restart)."""
+        run = self._runs.get(run_id)
+        if run is not None:
+            return {"status": run.status, "pr_url": run.pr_url,
+                    "result": run.result, "events": run.events}
+        if self._store is None:
+            return None
+        return await asyncio.to_thread(self._store.load, run_id)
+
+    async def start(self, pr_context: PRContext, pr_url: str = "") -> str:
+        run = Run(id=uuid.uuid4().hex, pr_url=pr_url)
         self._runs[run.id] = run
         self._evict_finished()
         asyncio.create_task(self._execute(run, pr_context))
@@ -88,3 +105,8 @@ class RunManager:
             logger.exception("run %s failed", run.id)
             await emit({"type": "run_failed", "error": "internal error running the review"})
             run.status = "failed"
+        finally:
+            if self._store is not None:
+                await asyncio.to_thread(
+                    self._store.save, run.id, run.created_at, run.pr_url,
+                    run.status, run.result, run.events)

@@ -70,6 +70,7 @@ export function fetchShowcase(slug: string): Promise<Showcase> {
 export interface ReviewResult {
   review: string;
   verified: unknown[];
+  usage?: { input_tokens: number; output_tokens: number; cost_usd: number | null };
 }
 
 export interface ReviewStatus {
@@ -77,8 +78,18 @@ export interface ReviewStatus {
   result: ReviewResult | null;
 }
 
-export function fetchReview(runId: string): Promise<ReviewStatus> {
+/** Full shape of `GET /reviews/{id}`: a permalink-loadable run record. */
+export interface RunRecord extends ReviewStatus {
+  pr_url: string;
+  events: StreamEvent[];
+}
+
+export function fetchRun(runId: string): Promise<RunRecord> {
   return request(`/reviews/${runId}`);
+}
+
+export function fetchReview(runId: string): Promise<ReviewStatus> {
+  return fetchRun(runId);
 }
 
 /**

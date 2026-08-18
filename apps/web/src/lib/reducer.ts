@@ -11,6 +11,13 @@ export function initialView(): RunView {
   };
 }
 
+/** Instant, unpaced replay of a stored event list -- used to rebuild the
+ * board synchronously from a `GET /reviews/{id}` permalink fetch, as opposed
+ * to `useReviewRun.replay`'s timer-paced showcase playback. */
+export function reduceAll(view: RunView, events: StreamEvent[]): RunView {
+  return events.reduce(reduce, view);
+}
+
 export function reduce(view: RunView, ev: StreamEvent): RunView {
   // Events naming an unknown node are ignored so a newer backend emitting an
   // unrecognized node name can never crash the reducer.

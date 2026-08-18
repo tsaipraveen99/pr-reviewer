@@ -8,3 +8,5 @@ dist/
 .ruff_cache/
 .pytest_cache/
 coverage/
+apps/api/data/
+*.db

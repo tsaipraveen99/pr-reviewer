@@ -23,10 +23,12 @@ def create_app(run_manager=None, github=None, settings: Settings | None = None) 
     settings = settings or Settings()
     if run_manager is None:
         from prcrew.api.runs import RunManager
+        from prcrew.api.store import RunStore
         from prcrew.graph.build import build_graph
         from prcrew.llm import AgentLLM
-        run_manager = RunManager(graph=build_graph(
-            AgentLLM(settings.specialist_model), AgentLLM(settings.synth_model)))
+        run_manager = RunManager(
+            graph=build_graph(AgentLLM(settings.specialist_model), AgentLLM(settings.synth_model)),
+            store=RunStore(settings.run_db_path))
     if github is None:
         from prcrew.github.client import GitHubClient
         github = GitHubClient(token=settings.github_token)

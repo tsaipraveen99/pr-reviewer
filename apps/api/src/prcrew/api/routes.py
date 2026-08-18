@@ -32,14 +32,14 @@ def make_router(run_manager: RunManager, github, limiter, limit_str: str) -> API
             if e.status == 404:
                 raise HTTPException(404, "Pull request not found")
             raise HTTPException(502, f"GitHub API error: {e.detail}")
-        return {"run_id": await run_manager.start(ctx)}
+        return {"run_id": await run_manager.start(ctx, body.pr_url)}
 
     @router.get("/reviews/{run_id}")
     async def get_review(run_id: str):
-        run = run_manager.get(run_id)
-        if not run:
+        data = await run_manager.fetch(run_id)
+        if data is None:
             raise HTTPException(404, "Unknown run")
-        return {"status": run.status, "result": run.result}
+        return data
 
     @router.get("/reviews/{run_id}/stream")
     async def stream_review(run_id: str):

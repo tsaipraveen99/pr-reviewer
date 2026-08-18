@@ -12,3 +12,4 @@ class Settings:
     synth_model: str = field(default_factory=lambda: os.environ.get("SYNTH_MODEL", "claude-sonnet-5"))
     daily_rate_limit: str = field(default_factory=lambda: os.environ.get("DAILY_RATE_LIMIT", "5/day"))
     cors_origins: str = field(default_factory=lambda: os.environ.get("CORS_ORIGINS", "*"))
+    run_db_path: str = field(default_factory=lambda: os.environ.get("RUN_DB_PATH", "./data/runs.db"))

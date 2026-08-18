@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from prcrew.api.app import client_ip, create_app
 from prcrew.api.runs import RunManager
+from prcrew.api.store import RunStore
 from prcrew.github.client import GitHubError, PrivateRepoError, PRTooLargeError
 from prcrew.graph.build import build_graph
 from prcrew.settings import Settings
@@ -22,11 +23,11 @@ class FakeGitHub:
         if self.error: raise self.error
         return self.result
 
-def make_manager():
+def make_manager(store=None):
     specialist = FakeLLM([findings_payload("c")] * 4 +
                          [{"verdicts": [{"index": i, "verdict": "confirmed", "reason": "ok"}
                                         for i in range(4)]}])
-    return RunManager(graph=build_graph(specialist, FakeLLM(["## R"])))
+    return RunManager(graph=build_graph(specialist, FakeLLM(["## R"])), store=store)
 
 def client_with(github):
     # Must be entered via `with` so TestClient reuses a single portal/event
@@ -50,6 +51,29 @@ def test_post_review_starts_run():
         assert status["result"]["review"] == "## R"
         assert status["result"]["usage"]["input_tokens"] > 0
         assert status["result"]["usage"]["cost_usd"] > 0
+        assert status["pr_url"] == "https://github.com/o/r/pull/1"
+        assert isinstance(status["events"], list) and status["events"]
+
+def test_get_review_falls_back_to_store_after_restart(tmp_path):
+    db_path = str(tmp_path / "runs.db")
+    store = RunStore(db_path)
+    with TestClient(create_app(run_manager=make_manager(store=store), github=FakeGitHub(result=CTX))) as c:
+        run_id = c.post("/reviews", json={"pr_url": "https://github.com/o/r/pull/1"}).json()["run_id"]
+        for _ in range(50):
+            status = c.get(f"/reviews/{run_id}").json()
+            if status["status"] == "done": break
+            time.sleep(0.05)
+        assert status["status"] == "done"
+    # Simulate a process restart: a fresh RunManager with empty memory, pointed
+    # at the same sqlite file, must still be able to serve the permalink.
+    fresh_manager = make_manager(store=RunStore(db_path))
+    with TestClient(create_app(run_manager=fresh_manager, github=FakeGitHub(result=CTX))) as c:
+        resp = c.get(f"/reviews/{run_id}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "done"
+        assert data["pr_url"] == "https://github.com/o/r/pull/1"
+        assert data["result"]["review"] == "## R"
 
 @pytest.mark.parametrize("error,code", [
     (PrivateRepoError("private"), 403),
