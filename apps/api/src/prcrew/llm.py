@@ -38,14 +38,53 @@ class AgentLLM:
         text = "".join(b.text for b in resp.content if b.type == "text")
         return text, _usage(resp)
 
-    async def _call(self, *, system: str, user: str, **kwargs):
+    async def tool_loop(self, system: str, user: str, tools: list[dict],
+                        executors: dict, final_tool: dict,
+                        max_tool_calls: int = 10) -> tuple[dict, dict]:
+        """Bounded manual tool-use loop ending in a forced structured report."""
+        messages: list[dict] = [{"role": "user", "content": user}]
+        total = {"input_tokens": 0, "output_tokens": 0}
+        calls_used = 0
+        force_final = False
+        while True:
+            kwargs: dict = {"tools": [*tools, final_tool]}
+            if force_final or calls_used >= max_tool_calls:
+                kwargs = {"tools": [final_tool],
+                          "tool_choice": {"type": "tool", "name": final_tool["name"]}}
+            resp = await self._call(system=system, messages=messages, **kwargs)
+            u = _usage(resp)
+            total["input_tokens"] += u["input_tokens"]
+            total["output_tokens"] += u["output_tokens"]
+            tool_uses = [b for b in resp.content if b.type == "tool_use"]
+            final = next((b for b in tool_uses if b.name == final_tool["name"]), None)
+            if final is not None:
+                return final.input, total
+            if not tool_uses:
+                force_final = True
+                continue
+            messages.append({"role": "assistant", "content": resp.content})
+            results = []
+            for block in tool_uses:
+                calls_used += 1
+                try:
+                    out = executors[block.name](block.input)
+                    results.append({"type": "tool_result", "tool_use_id": block.id,
+                                    "content": str(out)})
+                except Exception as e:  # noqa: BLE001
+                    results.append({"type": "tool_result", "tool_use_id": block.id,
+                                    "content": f"tool error: {e}", "is_error": True})
+            messages.append({"role": "user", "content": results})
+
+    async def _call(self, *, system: str, user: str | None = None,
+                    messages: list | None = None, **kwargs):
+        messages = messages or [{"role": "user", "content": user}]
         max_attempts = 3
         backoff_seconds = [1.0, 2.0]
         for attempt in range(max_attempts):
             try:
                 return await self._client.messages.create(
                     model=self.model, max_tokens=4096, system=system,
-                    messages=[{"role": "user", "content": user}], **kwargs)
+                    messages=messages, **kwargs)
             except Exception as e:
                 last_attempt = attempt == max_attempts - 1
                 if not _is_retryable(e) or last_attempt:

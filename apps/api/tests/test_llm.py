@@ -14,6 +14,26 @@ def _resp_with_tool_use(payload, input_tokens=10, output_tokens=20):
     resp.usage = MagicMock(input_tokens=input_tokens, output_tokens=output_tokens)
     return resp
 
+def _tool_use_block(name, id, input):
+    block = MagicMock()
+    block.type = "tool_use"
+    block.name = name
+    block.id = id
+    block.input = input
+    return block
+
+def _text_block(text):
+    block = MagicMock()
+    block.type = "text"
+    block.text = text
+    return block
+
+def _resp(content, input_tokens=10, output_tokens=20):
+    resp = MagicMock()
+    resp.content = content
+    resp.usage = MagicMock(input_tokens=input_tokens, output_tokens=output_tokens)
+    return resp
+
 def _status_error(code: int) -> anthropic.APIStatusError:
     response = httpx.Response(code, request=httpx.Request("POST", "https://api.anthropic.com"))
     return anthropic.APIStatusError("boom", response=response, body=None)
@@ -118,3 +138,88 @@ async def test_backoff_delays_are_1s_then_2s_plus_jitter(instant_sleep):
     first, second = instant_sleep
     assert 1.0 <= first <= 1.5
     assert 2.0 <= second <= 2.5
+
+
+# --- tool_loop -----------------------------------------------------------
+
+READ_TOOL = {"name": "read_file", "input_schema": {}}
+FINAL_TOOL = {"name": "report_findings", "input_schema": {}}
+
+
+async def test_tool_loop_executes_then_returns_final():
+    client = MagicMock()
+    resp1 = _resp([_tool_use_block("read_file", "t1", {"path": "a.py"})],
+                   input_tokens=10, output_tokens=20)
+    resp2 = _resp([_tool_use_block("report_findings", "t2", {"findings": []})],
+                   input_tokens=5, output_tokens=7)
+    client.messages.create = AsyncMock(side_effect=[resp1, resp2])
+    llm = AgentLLM(model="m", client=client)
+    executors = {"read_file": lambda args: f"CONTENT:{args['path']}"}
+
+    payload, usage = await llm.tool_loop("sys", "user", [READ_TOOL], executors, FINAL_TOOL)
+
+    assert payload == {"findings": []}
+    assert usage == {"input_tokens": 15, "output_tokens": 27}
+    second_kwargs = client.messages.create.call_args_list[1].kwargs
+    tool_result_msg = second_kwargs["messages"][-1]
+    assert tool_result_msg["role"] == "user"
+    tool_result = tool_result_msg["content"][0]
+    assert tool_result["type"] == "tool_result"
+    assert tool_result["tool_use_id"] == "t1"
+    assert tool_result["content"] == "CONTENT:a.py"
+
+
+async def test_tool_loop_executor_error_becomes_is_error_result():
+    client = MagicMock()
+    resp1 = _resp([_tool_use_block("read_file", "t1", {"path": "a.py"})])
+    resp2 = _resp([_tool_use_block("report_findings", "t2", {"findings": []})])
+    client.messages.create = AsyncMock(side_effect=[resp1, resp2])
+    llm = AgentLLM(model="m", client=client)
+
+    def raise_err(_args):
+        raise ValueError("nope")
+
+    executors = {"read_file": raise_err}
+
+    payload, _usage = await llm.tool_loop("sys", "user", [READ_TOOL], executors, FINAL_TOOL)
+
+    assert payload == {"findings": []}
+    second_kwargs = client.messages.create.call_args_list[1].kwargs
+    tool_result = second_kwargs["messages"][-1]["content"][0]
+    assert tool_result["is_error"] is True
+    assert "nope" in tool_result["content"]
+
+
+async def test_tool_loop_forces_final_after_cap():
+    client = MagicMock()
+    resp1 = _resp([_tool_use_block("read_file", "t1", {"path": "a.py"})])
+    resp2 = _resp([_tool_use_block("read_file", "t2", {"path": "b.py"})])
+    resp3 = _resp([_tool_use_block("report_findings", "t3", {"findings": []})])
+    client.messages.create = AsyncMock(side_effect=[resp1, resp2, resp3])
+    llm = AgentLLM(model="m", client=client)
+    executors = {"read_file": lambda args: "ok"}
+
+    payload, _usage = await llm.tool_loop(
+        "sys", "user", [READ_TOOL], executors, FINAL_TOOL, max_tool_calls=1)
+
+    assert payload == {"findings": []}
+    assert client.messages.create.call_count == 3
+    second_kwargs = client.messages.create.call_args_list[1].kwargs
+    assert second_kwargs["tool_choice"] == {"type": "tool", "name": "report_findings"}
+    assert second_kwargs["tools"] == [FINAL_TOOL]
+
+
+async def test_tool_loop_text_only_response_forces_final():
+    client = MagicMock()
+    resp1 = _resp([_text_block("thinking...")])
+    resp2 = _resp([_tool_use_block("report_findings", "t2", {"findings": []})])
+    client.messages.create = AsyncMock(side_effect=[resp1, resp2])
+    llm = AgentLLM(model="m", client=client)
+    executors = {"read_file": lambda args: "ok"}
+
+    payload, _usage = await llm.tool_loop("sys", "user", [READ_TOOL], executors, FINAL_TOOL)
+
+    assert payload == {"findings": []}
+    second_kwargs = client.messages.create.call_args_list[1].kwargs
+    assert second_kwargs["tool_choice"] == {"type": "tool", "name": "report_findings"}
+    assert second_kwargs["tools"] == [FINAL_TOOL]
