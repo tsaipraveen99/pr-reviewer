@@ -2,105 +2,130 @@
   "slug": "httpx-functionauth-all",
   "title": "httpx: expose FunctionAuth in __all__",
   "pr_url": "https://github.com/encode/httpx/pull/3699",
-  "recorded_at": "2026-08-18T03:09:21.924653+00:00",
+  "recorded_at": "2026-08-18T15:01:45.144309+00:00",
   "events": [
     {
       "type": "node_started",
       "node": "intake",
       "seq": 1,
-      "at_ms": 48
+      "at_ms": 39
     },
     {
       "type": "node_finished",
       "node": "intake",
       "seq": 2,
-      "at_ms": 48
+      "at_ms": 39
     },
     {
       "type": "node_started",
       "node": "correctness",
       "seq": 3,
-      "at_ms": 49
+      "at_ms": 40
     },
     {
       "type": "node_started",
       "node": "intent",
       "seq": 4,
-      "at_ms": 53
+      "at_ms": 44
     },
     {
       "type": "node_started",
       "node": "security",
       "seq": 5,
-      "at_ms": 53
+      "at_ms": 44
     },
     {
       "type": "node_started",
       "node": "tests",
       "seq": 6,
-      "at_ms": 58
-    },
-    {
-      "type": "node_finished",
-      "node": "security",
-      "seq": 7,
-      "at_ms": 1130
+      "at_ms": 45
     },
     {
       "type": "node_finished",
       "node": "tests",
-      "seq": 8,
-      "at_ms": 1168
-    },
-    {
-      "type": "node_finished",
-      "node": "correctness",
-      "seq": 9,
-      "at_ms": 1181
+      "usage": {
+        "input_tokens": 1640,
+        "output_tokens": 33
+      },
+      "cost_usd": 0.001805,
+      "seq": 7,
+      "at_ms": 933
     },
     {
       "type": "node_finished",
       "node": "intent",
+      "usage": {
+        "input_tokens": 1698,
+        "output_tokens": 33
+      },
+      "cost_usd": 0.001863,
+      "seq": 8,
+      "at_ms": 935
+    },
+    {
+      "type": "node_finished",
+      "node": "correctness",
+      "usage": {
+        "input_tokens": 1643,
+        "output_tokens": 33
+      },
+      "cost_usd": 0.001808,
+      "seq": 9,
+      "at_ms": 1091
+    },
+    {
+      "type": "node_finished",
+      "node": "security",
+      "usage": {
+        "input_tokens": 1642,
+        "output_tokens": 33
+      },
+      "cost_usd": 0.001807,
       "seq": 10,
-      "at_ms": 1379
+      "at_ms": 1405
     },
     {
       "type": "node_started",
       "node": "verifier",
       "seq": 11,
-      "at_ms": 1381
+      "at_ms": 1408
     },
     {
       "type": "verified",
       "confirmed": 0,
       "rejected": 0,
       "seq": 12,
-      "at_ms": 1381
+      "at_ms": 1408
     },
     {
       "type": "node_finished",
       "node": "verifier",
       "seq": 13,
-      "at_ms": 1381
+      "at_ms": 1408
     },
     {
       "type": "node_started",
       "node": "synthesizer",
       "seq": 14,
-      "at_ms": 1382
+      "at_ms": 1409
     },
     {
       "type": "review_complete",
-      "review": "## Verdict\n\nNo issues found. This is a minimal, low-risk change that adds `FunctionAuth` to the `__all__` export list, making it part of the public API alongside the other auth classes already exported (e.g., `BasicAuth`, `DigestAuth`). The change is straightforward and does what it says.\n\n## Findings\n\nNone reported by the panel.\n\n**Note:** The panel's review scope was limited to the confirmed findings provided; no independent verification of the diff (e.g., correct file location, alphabetical/logical ordering in `__all__`, or whether `FunctionAuth` is otherwise fully documented) was performed here.",
+      "review": "## Verdict\n\nNo issues found. This is a minimal, low-risk change that adds `FunctionAuth` to the public `__all__` export list, correcting an oversight where the class was usable but not officially exposed via the package's public API surface. The panel identified no correctness, style, or compatibility concerns.\n\n## Findings\n\nNone. The panel had no confirmed findings for this PR.\n\n**Note:** The panel's review scope was limited to the diff provided; it did not independently verify that `FunctionAuth`'s existing behavior/docstrings are consistent with other classes already in `__all__`, nor did it run the full test suite against this change.",
       "seq": 15,
-      "at_ms": 4797
+      "at_ms": 6459
     },
     {
       "type": "node_finished",
       "node": "synthesizer",
+      "usage": {
+        "input_tokens": 177,
+        "output_tokens": 204
+      },
+      "cost_usd": 0.0035909999999999996,
       "seq": 16,
-      "at_ms": 4797
+      "at_ms": 6459
     }
   ],
-  "review": "## Verdict\n\nNo issues found. This is a minimal, low-risk change that adds `FunctionAuth` to the `__all__` export list, making it part of the public API alongside the other auth classes already exported (e.g., `BasicAuth`, `DigestAuth`). The change is straightforward and does what it says.\n\n## Findings\n\nNone reported by the panel.\n\n**Note:** The panel's review scope was limited to the confirmed findings provided; no independent verification of the diff (e.g., correct file location, alphabetical/logical ordering in `__all__`, or whether `FunctionAuth` is otherwise fully documented) was performed here."
+  "review": "## Verdict\n\nNo issues found. This is a minimal, low-risk change that adds `FunctionAuth` to the public `__all__` export list, correcting an oversight where the class was usable but not officially exposed via the package's public API surface. The panel identified no correctness, style, or compatibility concerns.\n\n## Findings\n\nNone. The panel had no confirmed findings for this PR.\n\n**Note:** The panel's review scope was limited to the diff provided; it did not independently verify that `FunctionAuth`'s existing behavior/docstrings are consistent with other classes already in `__all__`, nor did it run the full test suite against this change."
 }

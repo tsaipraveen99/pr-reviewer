@@ -2,49 +2,91 @@
   "slug": "flask-query-decorator",
   "title": "Flask: add app.query route decorator",
   "pr_url": "https://github.com/pallets/flask/pull/6133",
-  "recorded_at": "2026-08-18T03:09:04.753134+00:00",
+  "recorded_at": "2026-08-18T15:01:24.426741+00:00",
   "events": [
     {
       "type": "node_started",
       "node": "intake",
       "seq": 1,
-      "at_ms": 48
+      "at_ms": 36
     },
     {
       "type": "node_finished",
       "node": "intake",
       "seq": 2,
-      "at_ms": 48
+      "at_ms": 36
     },
     {
       "type": "node_started",
       "node": "correctness",
       "seq": 3,
-      "at_ms": 50
+      "at_ms": 37
     },
     {
       "type": "node_started",
       "node": "intent",
       "seq": 4,
-      "at_ms": 56
+      "at_ms": 41
     },
     {
       "type": "node_started",
       "node": "security",
       "seq": 5,
-      "at_ms": 57
+      "at_ms": 41
     },
     {
       "type": "node_started",
       "node": "tests",
       "seq": 6,
-      "at_ms": 63
+      "at_ms": 42
+    },
+    {
+      "type": "node_finished",
+      "node": "security",
+      "usage": {
+        "input_tokens": 2045,
+        "output_tokens": 33
+      },
+      "cost_usd": 0.00221,
+      "seq": 7,
+      "at_ms": 938
     },
     {
       "type": "node_finished",
       "node": "correctness",
-      "seq": 7,
-      "at_ms": 1004
+      "usage": {
+        "input_tokens": 2046,
+        "output_tokens": 33
+      },
+      "cost_usd": 0.0022110000000000003,
+      "seq": 8,
+      "at_ms": 1050
+    },
+    {
+      "type": "finding",
+      "node": "tests",
+      "finding": {
+        "id": "tests-0",
+        "agent": "tests",
+        "file": "tests/test_basic.py",
+        "line": null,
+        "severity": "major",
+        "claim": "Test for new `query` route decorator uses weak assertion with generic fallback instead of explicit QUERY method verification.",
+        "evidence": "The test uses `partial(client.open, method=method.capitalize())` as a fallback for the `query` method, which means the test won't fail if the HTTP QUERY method isn't properly set\u2014it will just execute whatever method is passed. This masks bugs where the decorator doesn't properly set `methods=['QUERY']`."
+      },
+      "seq": 9,
+      "at_ms": 2220
+    },
+    {
+      "type": "node_finished",
+      "node": "tests",
+      "usage": {
+        "input_tokens": 2043,
+        "output_tokens": 167
+      },
+      "cost_usd": 0.0028780000000000003,
+      "seq": 10,
+      "at_ms": 2220
     },
     {
       "type": "finding",
@@ -55,148 +97,88 @@
         "file": "<UNKNOWN>",
         "line": null,
         "severity": "major",
-        "claim": "PR title and description claim to implement `app.query` route decorator but linked issue #3193 describes a completely different problem about Flask session variables not being available in threads.",
-        "evidence": "PR title: 'add `app.query` route decorator' vs Issue #3193: 'Flask Session variable not available in threads' with example about passing via Queue"
+        "claim": "PR description claims to close issue #3193 about Flask Session variables not available in threads, but the diff only adds an HTTP QUERY method decorator unrelated to session thread safety.",
+        "evidence": "Description states 'closes #3193' which references a session threading issue, but the diff only adds '@app.query' decorator: 'def query(self, rule: str, **options: t.Any) -> t.Callable[[T_route], T_route]:' for the QUERY HTTP method."
       },
-      "seq": 8,
-      "at_ms": 2035
+      "seq": 11,
+      "at_ms": 2767
     },
     {
       "type": "node_finished",
       "node": "intent",
-      "seq": 9,
-      "at_ms": 2035
-    },
-    {
-      "type": "finding",
-      "node": "security",
-      "finding": {
-        "id": "security-0",
-        "agent": "security",
-        "file": "src/flask/sansio/scaffold.py",
-        "line": 305,
-        "severity": "major",
-        "claim": "HTTP QUERY method is non-standard and may enable unintended request processing if not properly validated downstream.",
-        "evidence": "return self._method_route(\"QUERY\", rule, options)"
+      "usage": {
+        "input_tokens": 2101,
+        "output_tokens": 183
       },
-      "seq": 10,
-      "at_ms": 2153
-    },
-    {
-      "type": "node_finished",
-      "node": "security",
-      "seq": 11,
-      "at_ms": 2153
-    },
-    {
-      "type": "finding",
-      "node": "tests",
-      "finding": {
-        "id": "tests-0",
-        "agent": "tests",
-        "file": "tests/test_basic.py",
-        "line": 56,
-        "severity": "major",
-        "claim": "Test for new `app.query` decorator uses a fallback that bypasses client method validation.",
-        "evidence": "client_method = getattr(\n        client, method, partial(client.open, method=method.capitalize())\n    )"
-      },
+      "cost_usd": 0.003016,
       "seq": 12,
-      "at_ms": 2656
-    },
-    {
-      "type": "finding",
-      "node": "tests",
-      "finding": {
-        "id": "tests-1",
-        "agent": "tests",
-        "file": "tests/test_basic.py",
-        "line": 55,
-        "severity": "major",
-        "claim": "Test does not verify that the QUERY method is actually supported by the test client or HTTP stack.",
-        "evidence": "@pytest.mark.parametrize(\"method\", [\"get\", \"query\", \"post\", \"put\", \"delete\", \"patch\"])\ndef test_method_route(app, client, method):"
-      },
-      "seq": 13,
-      "at_ms": 2656
-    },
-    {
-      "type": "node_finished",
-      "node": "tests",
-      "seq": 14,
-      "at_ms": 2656
+      "at_ms": 2767
     },
     {
       "type": "node_started",
       "node": "verifier",
-      "seq": 15,
-      "at_ms": 2658
+      "seq": 13,
+      "at_ms": 2769
     },
     {
       "type": "finding_verdict",
       "id": "intent-0",
       "verdict": "rejected",
       "severity": "major",
-      "reason": "This is an argument with the PR description's wording rather than an actionable defect in the code. The PR description explains the reason for the change (it addresses issue #3193), but the actual code changes implement what the title claims: adding an `app.query` route decorator. The diff itself correctly implements this feature. The discrepancy between the title and the linked issue is a documentation/description concern, not a code defect.",
-      "seq": 16,
-      "at_ms": 9214
-    },
-    {
-      "type": "finding_verdict",
-      "id": "security-0",
-      "verdict": "rejected",
-      "severity": "major",
-      "reason": "This finding misreads the code. The code doesn't enable 'unintended request processing' \u2014 it simply adds a route decorator method that calls `_method_route(\"QUERY\", rule, options)`, which is the standard pattern used for all HTTP method decorators in this file (GET, POST, PUT, DELETE, PATCH). The RFC 10008 QUERY method is being added intentionally and consistently with the existing architecture. Validation downstream is handled by the same mechanisms as other HTTP methods. This is not a security vulnerability.",
-      "seq": 17,
-      "at_ms": 9214
+      "reason": "The finding conflates the PR description's linking mechanism with the actual change. The PR closes issue #3193 but does not claim to *fix* or *address* the session threading issue\u2014it only says 'closes #3193'. Looking at the linked issue context, this is likely a case where the issue was opened to track adding QUERY support (the RFC/feature), and the PR is the implementation of that feature. The finding misreads the closing statement as an attempted fix for the session problem described in the issue, when in reality the diff correctly implements what was requested. This is an argument with PR description wording rather than an actionable defect in the code change itself.",
+      "seq": 14,
+      "at_ms": 7577
     },
     {
       "type": "finding_verdict",
       "id": "tests-0",
       "verdict": "confirmed",
-      "severity": "minor",
-      "reason": "The test uses a fallback mechanism (`partial(client.open, method=method.capitalize())`) to handle the 'query' method, which bypasses the proper `client.query()` method that should exist if the test client has been updated to support the QUERY method. However, the diff notes mention 'Adjusted the test here to account for Werkzeug not being released yet,' so this is a known limitation due to dependency synchronization, not a test defect per se. But the finding is technically correct: the test doesn't directly validate the client method.",
-      "seq": 18,
-      "at_ms": 9214
-    },
-    {
-      "type": "finding_verdict",
-      "id": "tests-1",
-      "verdict": "rejected",
       "severity": "major",
-      "reason": "This is not an actionable defect. The test is a parametrized route decorator test that verifies Flask's route decorator methods work consistently. It doesn't need to verify HTTP stack support \u2014 that's already tested by the actual HTTP layer. The test appropriately uses a fallback for an unimplemented client method (as noted in the PR description). This is a reasonable approach for testing route decorator consistency while waiting for the Werkzeug release.",
-      "seq": 19,
-      "at_ms": 9214
+      "reason": "The test uses a fallback via `partial(client.open, method=method.capitalize())` which means for the 'query' method, it will call `client.open(method='Query')` when `client.query` doesn't exist. This fallback masks whether the `@query` decorator actually works correctly\u2014the test will pass regardless of whether `methods=['QUERY']` is properly set, because it's explicitly calling `client.open()` with the method parameter. A proper test should either (a) verify that `client.query` exists and works, or (b) make an actual HTTP request and verify the QUERY method is accepted. The generic fallback weakens the test's ability to catch bugs in the decorator implementation.",
+      "seq": 15,
+      "at_ms": 7578
     },
     {
       "type": "verified",
       "confirmed": 1,
-      "rejected": 3,
-      "seq": 20,
-      "at_ms": 9214
+      "rejected": 1,
+      "seq": 16,
+      "at_ms": 7578
     },
     {
       "type": "node_finished",
       "node": "verifier",
-      "seq": 21,
-      "at_ms": 9214
+      "usage": {
+        "input_tokens": 2310,
+        "output_tokens": 401
+      },
+      "cost_usd": 0.004314999999999999,
+      "seq": 17,
+      "at_ms": 7578
     },
     {
       "type": "node_started",
       "node": "synthesizer",
-      "seq": 22,
-      "at_ms": 9215
+      "seq": 18,
+      "at_ms": 7579
     },
     {
       "type": "review_complete",
-      "review": "## Verdict\n\nOnly one confirmed finding came out of this review, and it's minor and test-only \u2014 it does not block merging on its own. However, the panel's confirmed findings are limited to `tests/test_basic.py`; no findings were confirmed (or apparently checked) against the actual `app.query` decorator implementation itself, so this review should not be read as a sign-off on the feature's core logic, routing behavior, or documentation.\n\n### Minor\n\n- **tests/test_basic.py:56** \u2014 The test for the new `app.query` decorator resolves the HTTP client method via `getattr(client, method, partial(client.open, method=method.capitalize()))`. This silently falls back to a generic `client.open(method=...)` call if `client` doesn't have a matching attribute (e.g. due to a typo in `method` or an unsupported HTTP verb), rather than failing loudly. This weakens the test's ability to catch method-name mismatches or misconfiguration in the `query` decorator wiring.\n  ```python\n  client_method = getattr(\n      client, method, partial(client.open, method=method.capitalize())\n  )\n  ```\n  Recommend asserting that `hasattr(client, method)` (or explicitly checking for the expected client methods) before falling back, so a missing/misspelled method fails the test instead of silently degrading to a generic open call.\n\n### Not checked / out of scope for this panel\n\n- The implementation of `app.query` itself (routing rules, `GET`-with-body semantics, integration with `add_url_rule`) was not covered by any confirmed finding \u2014 reviewers should independently verify this before merge.\n- Documentation/changelog updates for the new decorator were not assessed.",
-      "seq": 23,
-      "at_ms": 16707
+      "review": "## Verdict\n\nThis PR adds a new `app.query` route decorator but the accompanying test does not actually verify the feature works. The test's fallback logic (`partial(client.open, method=method.capitalize())`) means it will silently pass even if the decorator fails to bind the route to the `QUERY` HTTP method, so there is no real coverage confirming the core behavior of this PR. This must be fixed before merge \u2014 as it stands, a broken implementation of `app.query` could ship undetected.\n\n### Major\n- `tests/test_basic.py` (line not specified) \u2014 The test for `app.query` falls back to `partial(client.open, method=method.capitalize())` when no dedicated client helper exists for the QUERY method. This means the test executes the request with whatever method string is passed rather than explicitly asserting that the route was registered with `methods=['QUERY']`. A decorator that fails to set the method correctly (e.g., defaults to `GET`/`POST`, or omits `QUERY` entirely) would not cause this test to fail. Needs an explicit, direct assertion that the route only accepts `QUERY` and that requests using other methods are rejected (405), plus verification that `client.open(method=\"QUERY\", ...)` reaches the view.",
+      "seq": 19,
+      "at_ms": 13790
     },
     {
       "type": "node_finished",
       "node": "synthesizer",
-      "seq": 24,
-      "at_ms": 16707
+      "usage": {
+        "input_tokens": 332,
+        "output_tokens": 402
+      },
+      "cost_usd": 0.007026000000000001,
+      "seq": 20,
+      "at_ms": 13790
     }
   ],
-  "review": "## Verdict\n\nOnly one confirmed finding came out of this review, and it's minor and test-only \u2014 it does not block merging on its own. However, the panel's confirmed findings are limited to `tests/test_basic.py`; no findings were confirmed (or apparently checked) against the actual `app.query` decorator implementation itself, so this review should not be read as a sign-off on the feature's core logic, routing behavior, or documentation.\n\n### Minor\n\n- **tests/test_basic.py:56** \u2014 The test for the new `app.query` decorator resolves the HTTP client method via `getattr(client, method, partial(client.open, method=method.capitalize()))`. This silently falls back to a generic `client.open(method=...)` call if `client` doesn't have a matching attribute (e.g. due to a typo in `method` or an unsupported HTTP verb), rather than failing loudly. This weakens the test's ability to catch method-name mismatches or misconfiguration in the `query` decorator wiring.\n  ```python\n  client_method = getattr(\n      client, method, partial(client.open, method=method.capitalize())\n  )\n  ```\n  Recommend asserting that `hasattr(client, method)` (or explicitly checking for the expected client methods) before falling back, so a missing/misspelled method fails the test instead of silently degrading to a generic open call.\n\n### Not checked / out of scope for this panel\n\n- The implementation of `app.query` itself (routing rules, `GET`-with-body semantics, integration with `add_url_rule`) was not covered by any confirmed finding \u2014 reviewers should independently verify this before merge.\n- Documentation/changelog updates for the new decorator were not assessed."
+  "review": "## Verdict\n\nThis PR adds a new `app.query` route decorator but the accompanying test does not actually verify the feature works. The test's fallback logic (`partial(client.open, method=method.capitalize())`) means it will silently pass even if the decorator fails to bind the route to the `QUERY` HTTP method, so there is no real coverage confirming the core behavior of this PR. This must be fixed before merge \u2014 as it stands, a broken implementation of `app.query` could ship undetected.\n\n### Major\n- `tests/test_basic.py` (line not specified) \u2014 The test for `app.query` falls back to `partial(client.open, method=method.capitalize())` when no dedicated client helper exists for the QUERY method. This means the test executes the request with whatever method string is passed rather than explicitly asserting that the route was registered with `methods=['QUERY']`. A decorator that fails to set the method correctly (e.g., defaults to `GET`/`POST`, or omits `QUERY` entirely) would not cause this test to fail. Needs an explicit, direct assertion that the route only accepts `QUERY` and that requests using other methods are rejected (405), plus verification that `client.open(method=\"QUERY\", ...)` reaches the view."
 }

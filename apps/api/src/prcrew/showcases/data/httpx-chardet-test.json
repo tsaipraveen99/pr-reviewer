@@ -2,61 +2,76 @@
   "slug": "httpx-chardet-test",
   "title": "httpx: adapt autodetect test for chardet 6.0",
   "pr_url": "https://github.com/encode/httpx/pull/3773",
-  "recorded_at": "2026-08-18T03:09:14.501586+00:00",
+  "recorded_at": "2026-08-18T15:01:36.075103+00:00",
   "events": [
     {
       "type": "node_started",
       "node": "intake",
       "seq": 1,
-      "at_ms": 44
+      "at_ms": 31
     },
     {
       "type": "node_finished",
       "node": "intake",
       "seq": 2,
-      "at_ms": 44
+      "at_ms": 31
     },
     {
       "type": "node_started",
       "node": "correctness",
       "seq": 3,
-      "at_ms": 45
+      "at_ms": 32
     },
     {
       "type": "node_started",
       "node": "intent",
       "seq": 4,
-      "at_ms": 49
+      "at_ms": 36
     },
     {
       "type": "node_started",
       "node": "security",
       "seq": 5,
-      "at_ms": 49
+      "at_ms": 36
     },
     {
       "type": "node_started",
       "node": "tests",
       "seq": 6,
-      "at_ms": 50
+      "at_ms": 37
     },
     {
       "type": "node_finished",
       "node": "security",
+      "usage": {
+        "input_tokens": 1498,
+        "output_tokens": 33
+      },
+      "cost_usd": 0.001663,
       "seq": 7,
-      "at_ms": 860
-    },
-    {
-      "type": "node_finished",
-      "node": "intent",
-      "seq": 8,
-      "at_ms": 860
+      "at_ms": 910
     },
     {
       "type": "node_finished",
       "node": "correctness",
+      "usage": {
+        "input_tokens": 1499,
+        "output_tokens": 33
+      },
+      "cost_usd": 0.001664,
+      "seq": 8,
+      "at_ms": 949
+    },
+    {
+      "type": "node_finished",
+      "node": "intent",
+      "usage": {
+        "input_tokens": 1554,
+        "output_tokens": 33
+      },
+      "cost_usd": 0.001719,
       "seq": 9,
-      "at_ms": 896
+      "at_ms": 983
     },
     {
       "type": "finding",
@@ -67,64 +82,79 @@
         "file": "tests/models/test_responses.py",
         "line": 1014,
         "severity": "minor",
-        "claim": "Test assertion weakened to accept multiple encoding values without validating both decode correctly.",
-        "evidence": "assert response.encoding in (\"ISO-8859-1\", \"WINDOWS-1252\")\n    assert response.text == text"
+        "claim": "Test assertion weakened to accept multiple values instead of verifying a specific encoding behavior.",
+        "evidence": "assert response.encoding in (\"ISO-8859-1\", \"WINDOWS-1252\") replaces assert response.encoding == \"ISO-8859-1\""
       },
       "seq": 10,
-      "at_ms": 1635
+      "at_ms": 1670
     },
     {
       "type": "node_finished",
       "node": "tests",
+      "usage": {
+        "input_tokens": 1496,
+        "output_tokens": 142
+      },
+      "cost_usd": 0.002206,
       "seq": 11,
-      "at_ms": 1635
+      "at_ms": 1670
     },
     {
       "type": "node_started",
       "node": "verifier",
       "seq": 12,
-      "at_ms": 1636
+      "at_ms": 1672
     },
     {
       "type": "finding_verdict",
       "id": "tests-0",
       "verdict": "rejected",
       "severity": "minor",
-      "reason": "This finding mischaracterizes the change. The test does validate that both encodings decode correctly: the existing assertion `assert response.text == text` on line 1018 (after the diff) ensures that whichever encoding is detected, it produces the correct decoded text. The PR description explicitly states both encodings produce the same Unicode string from the byte sequence, making this validation sufficient. The change is a reasonable adaptation to handle a legitimate difference in chardet's behavior across versions 6.0+, not a weakening of test rigor without validation.",
+      "reason": "This is a legitimate test adaptation for handling library version differences, not a defect. The finding characterizes a necessary change as a 'weakening' of the test, but the diff and PR description clearly explain that chardet 6.0 changed its behavior while both encodings produce identical Unicode output. This is not a style/consistency issue or actionable defect in the code\u2014it's a valid fix for a test regression caused by a dependency update. A competent reviewer would recognize this as an appropriate change, not a weakness in testing.",
       "seq": 13,
-      "at_ms": 3981
+      "at_ms": 4162
     },
     {
       "type": "verified",
       "confirmed": 0,
       "rejected": 1,
       "seq": 14,
-      "at_ms": 3981
+      "at_ms": 4162
     },
     {
       "type": "node_finished",
       "node": "verifier",
+      "usage": {
+        "input_tokens": 1599,
+        "output_tokens": 165
+      },
+      "cost_usd": 0.002424,
       "seq": 15,
-      "at_ms": 3981
+      "at_ms": 4162
     },
     {
       "type": "node_started",
       "node": "synthesizer",
       "seq": 16,
-      "at_ms": 3982
+      "at_ms": 4163
     },
     {
       "type": "review_complete",
-      "review": "No confirmed findings from the panel. The PR looks good to merge based on the review conducted \u2014 it's a narrowly scoped test adaptation for chardet 6.0 compatibility and no issues were identified. Note: the panel's review was limited to the confirmed-findings process here, so this does not substitute for verifying locally that the updated test actually passes against both the old and new chardet versions in CI, or checking whether other tests/fixtures rely on the same chardet behavior change.",
+      "review": "## Verdict\n\nNo issues found. The panel reviewed this PR and confirmed no problems\u2014changes appear scoped correctly to adapt the test for chardet 6.0 compatibility.\n\n**Note:** The panel could not verify: (1) actual behavioral differences between chardet 5.x and 6.0 that motivate this change, (2) whether the updated test assertions correctly reflect chardet 6.0's new detection output for the specific fixture data used, or (3) whether CI passes with both old and new chardet versions if this repo supports a version range. Recommend confirming CI is green across the supported chardet version matrix before merge.",
       "seq": 17,
-      "at_ms": 7165
+      "at_ms": 9013
     },
     {
       "type": "node_finished",
       "node": "synthesizer",
+      "usage": {
+        "input_tokens": 186,
+        "output_tokens": 204
+      },
+      "cost_usd": 0.0036179999999999997,
       "seq": 18,
-      "at_ms": 7165
+      "at_ms": 9013
     }
   ],
-  "review": "No confirmed findings from the panel. The PR looks good to merge based on the review conducted \u2014 it's a narrowly scoped test adaptation for chardet 6.0 compatibility and no issues were identified. Note: the panel's review was limited to the confirmed-findings process here, so this does not substitute for verifying locally that the updated test actually passes against both the old and new chardet versions in CI, or checking whether other tests/fixtures rely on the same chardet behavior change."
+  "review": "## Verdict\n\nNo issues found. The panel reviewed this PR and confirmed no problems\u2014changes appear scoped correctly to adapt the test for chardet 6.0 compatibility.\n\n**Note:** The panel could not verify: (1) actual behavioral differences between chardet 5.x and 6.0 that motivate this change, (2) whether the updated test assertions correctly reflect chardet 6.0's new detection output for the specific fixture data used, or (3) whether CI passes with both old and new chardet versions if this repo supports a version range. Recommend confirming CI is green across the supported chardet version matrix before merge."
 }
