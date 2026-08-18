@@ -1,11 +1,11 @@
-"""One-time migration script: SQLite runs -> Postgres reviews via ReviewStore.
+"""One-time migration script: SQLite runs -> Postgres reviews.
 
 Reads from legacy SQLite DB with schema:
   runs(id TEXT PRIMARY KEY, created_at TEXT, pr_url TEXT, status TEXT,
        result_json TEXT, events_json TEXT)
 
-Writes to reviews table via ReviewStore, extracting usage from result_json
-when present, setting source="web" for all legacy rows.
+Writes to reviews table, preserving legacy created_at timestamps, extracting
+usage from result_json when present, setting source="web" for all legacy rows.
 
 Usage: uv run python scripts/migrate_sqlite_runs.py <legacy.db>
   Reads DATABASE_URL from environment.
@@ -15,20 +15,21 @@ import asyncio
 import json
 import sqlite3
 import sys
+from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from prcrew.api.review_store import ReviewStore
-from prcrew.db import Base, make_engine, make_session_factory
+from prcrew.db import Base, Review, make_engine, make_session_factory
 from prcrew.settings import Settings
 
 
-async def migrate(old_db_path: str, session_factory: async_sessionmaker) -> int:
+async def migrate(old_db_path: str, session_factory: async_sessionmaker[AsyncSession]) -> int:
     """Migrate all rows from legacy SQLite runs table to Postgres reviews.
 
-    Reads synchronously from SQLite, writes asynchronously via ReviewStore.
-    Uses session.merge (upsert) to be idempotent.
+    Reads synchronously from SQLite, writes asynchronously via session.merge().
+    Preserves legacy created_at timestamps when parseable (ISO 8601 with Z suffix).
+    Uses session.merge (upsert) for idempotency.
 
     Args:
         old_db_path: Path to legacy SQLite database file.
@@ -49,27 +50,41 @@ async def migrate(old_db_path: str, session_factory: async_sessionmaker) -> int:
     finally:
         conn.close()
 
-    # Write each row via ReviewStore
-    store = ReviewStore(session_factory)
-    for row_id, created_at, pr_url, status, result_json_str, events_json_str in rows:
-        result = json.loads(result_json_str) if result_json_str else None
-        events = json.loads(events_json_str) if events_json_str else []
+    # Write each row via session.merge, preserving created_at
+    async with session_factory() as session:
+        for row_id, created_at_str, pr_url, status, result_json_str, events_json_str in rows:
+            result = json.loads(result_json_str) if result_json_str else None
+            events = json.loads(events_json_str) if events_json_str else []
 
-        # Extract usage from result_json if present
-        usage = None
-        if result is not None and "usage" in result:
-            usage = result["usage"]
+            # Extract usage from result_json if present
+            usage = None
+            if result is not None and "usage" in result:
+                usage = result["usage"]
 
-        # Write via ReviewStore with source="web"
-        await store.save(
-            run_id=row_id,
-            pr_url=pr_url,
-            status=status,
-            result=result,
-            events=events,
-            usage=usage,
-            source="web",
-        )
+            # Parse legacy created_at; if unparseable or empty, leave unset for server_default
+            parsed_created_at: datetime | None = None
+            if created_at_str:
+                try:
+                    parsed_created_at = datetime.fromisoformat(created_at_str)
+                except ValueError:
+                    pass  # Leave unset; server_default will apply
+
+            # Merge the Review object directly to preserve created_at
+            review = Review(
+                id=row_id,
+                source="web",
+                pr_url=pr_url,
+                status=status,
+                result_json=result,
+                events_json=events,
+                usage_json=usage,
+            )
+            if parsed_created_at is not None:
+                review.created_at = parsed_created_at
+
+            await session.merge(review)
+
+        await session.commit()
 
     return len(rows)
 
