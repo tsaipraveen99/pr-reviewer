@@ -42,7 +42,7 @@ _BASE = (
     "- major: will produce incorrect behavior for real inputs.\n"
     "- minor: style, robustness, or maintainability concern.\n"
     "- info: neutral observation worth noting.\n"
-    "Report each finding at the severity a experienced staff engineer would "
+    "Report each finding at the severity an experienced staff engineer would "
     "assign. Style or consistency observations are never above minor. An "
     "empty findings list is a good outcome — most small PRs are fine. Never "
     "stretch to find something.\n\nYour specialty: "
