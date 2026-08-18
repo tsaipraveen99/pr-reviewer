@@ -89,8 +89,8 @@ def test_parse_jsts_app_defs():
     ir = parse_jsts("src/app.ts", source, "typescript")
 
     assert ir.module_qualified == "src/app"
-    assert ir.imports == []
-    assert ir.calls == []
+    # imports/calls for this fixture are covered exactly by
+    # tests/test_jsts_imports_calls.py::test_parse_jsts_app_imports_and_calls
     assert ir.defs == [
         Def(
             name="app",
