@@ -41,9 +41,9 @@ rows, each tagged with a `role`:
 
 - **changed** — non-module symbols in the changed files that overlap a
   given range.
-- **caller** — symbols with a `call` edge *into* a changed symbol.
-- **callee** — symbols a changed symbol has a resolved `call` edge *into*.
-- **importer** — symbols with an `import` edge into anything in a changed
+- **caller** — symbols with a `calls` edge *into* a changed symbol.
+- **callee** — symbols a changed symbol has a resolved `calls` edge *into*.
+- **importer** — symbols with an `imports` edge into anything in a changed
   file.
 
 Roles dedupe by priority (changed > caller > callee > importer — a symbol
@@ -69,7 +69,7 @@ target is created on demand.
 
 ```
 $ uv run prgraph index ../../apps/api/src --db sqlite:////tmp/prcrew-graph.db
-parsed=27 skipped=0 deleted=0 symbols=104 edges=449
+parsed=27 skipped=0 deleted=0 errors=0 symbols=104 edges=449
 
 $ uv run prgraph slice ../../apps/api/src \
     --file prcrew/graph/verifier.py:58-58 \
