@@ -70,12 +70,15 @@ SPECIALISTS: dict[str, str] = {
         "introduced by this diff."),
 }
 
-def render_context(ctx: PRContext) -> str:
+def render_context(ctx: PRContext, graph_slice: str | None = None) -> str:
     issue = f"\n\nLinked issue:\n{ctx.linked_issue}" if ctx.linked_issue else ""
+    sliced = (f"\n\nRepository context (code-graph slice — symbols around the "
+              f"changed lines, with their callers/callees/importers):\n{graph_slice}"
+              if graph_slice else "")
     return (
         f"PR: {ctx.owner}/{ctx.repo}#{ctx.number}\n"
         f"Title: {ctx.title}\n\nDescription:\n{ctx.body or '(empty)'}{issue}\n\n"
-        f"Diff ({ctx.changed_files} files, {ctx.changed_lines} lines):\n{ctx.diff}"
+        f"Diff ({ctx.changed_files} files, {ctx.changed_lines} lines):\n{ctx.diff}{sliced}"
     )
 
 def make_specialist(name: str, llm: AgentLLM):
@@ -86,7 +89,8 @@ def make_specialist(name: str, llm: AgentLLM):
         await emit({"type": "node_started", "node": name})
         try:
             out, usage = await llm.structured(
-                system, render_context(state["pr_context"]), FINDINGS_TOOL)
+                system, render_context(state["pr_context"], state.get("graph_slice")),
+                FINDINGS_TOOL)
             findings = [Finding(id=f"{name}-{i}", agent=name, **f)
                         for i, f in enumerate(out.get("findings", []))]
             for f in findings:

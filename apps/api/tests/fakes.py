@@ -8,12 +8,21 @@ class FakeLLM:
     def __init__(self, responses: list, model: str = "claude-sonnet-5-20260101"):
         self.responses = list(responses)
         self.calls: list[tuple[str, str]] = []
+        self.tool_loop_calls: list[dict] = []
         self.model = model
 
     async def structured(self, system: str, user: str, tool: dict) -> tuple[dict, dict]:
         return self._next(system, user)
 
     async def text(self, system: str, user: str) -> tuple[str, dict]:
+        return self._next(system, user)
+
+    async def tool_loop(self, system: str, user: str, tools: list, executors: dict,
+                        final_tool: dict, max_tool_calls: int = 10) -> tuple[dict, dict]:
+        self.tool_loop_calls.append({
+            "system": system, "user": user, "tools": tools, "executors": executors,
+            "final_tool": final_tool, "max_tool_calls": max_tool_calls,
+        })
         return self._next(system, user)
 
     def _next(self, system, user):

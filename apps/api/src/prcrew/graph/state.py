@@ -9,6 +9,7 @@ def merge_dicts(a: dict, b: dict) -> dict:
 
 class ReviewState(TypedDict, total=False):
     pr_context: PRContext
+    graph_slice: str
     findings: Annotated[dict[str, list[Finding]], merge_dicts]
     errors: Annotated[list[NodeError], operator.add]
     verified: list[VerifiedFinding]

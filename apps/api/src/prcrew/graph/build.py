@@ -15,11 +15,12 @@ async def _intake(state: dict, config: RunnableConfig | None = None) -> dict:
     await emit({"type": "node_finished", "node": "intake"})
     return {}
 
-def build_graph(specialist_llm: AgentLLM, synth_llm: AgentLLM):
+def build_graph(specialist_llm: AgentLLM, synth_llm: AgentLLM, intent_node=None):
     g = StateGraph(ReviewState)
     g.add_node("intake", _intake)
     for name in SPECIALISTS:
-        g.add_node(name, make_specialist(name, specialist_llm))
+        g.add_node(name, intent_node if (name == "intent" and intent_node is not None)
+                   else make_specialist(name, specialist_llm))
     g.add_node("verifier", make_verifier(specialist_llm))
     g.add_node("synthesizer", make_synthesizer(synth_llm))
 

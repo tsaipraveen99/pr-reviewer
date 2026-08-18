@@ -67,7 +67,8 @@ def make_verifier(llm: AgentLLM):
         numbered = "\n".join(
             f"[{i}] ({f.agent}, {f.severity}) {f.file}:{f.line} — {f.claim}\n"
             f"    evidence: {f.evidence}" for i, f in enumerate(flat))
-        user = f"{render_context(state['pr_context'])}\n\nFindings to verify:\n{numbered}"
+        user = (f"{render_context(state['pr_context'], state.get('graph_slice'))}"
+                f"\n\nFindings to verify:\n{numbered}")
         usage: dict | None = None
         cost: float | None = None
         try:
