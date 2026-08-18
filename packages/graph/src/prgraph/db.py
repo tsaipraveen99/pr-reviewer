@@ -62,7 +62,9 @@ class Symbol(Base):
 
     id = Column(Integer, primary_key=True)
     repo_id = Column(BigInteger, nullable=False)
-    file_id = Column(Integer, ForeignKey("files.id", ondelete="CASCADE"), nullable=False)
+    file_id = Column(
+        Integer, ForeignKey("files.id", ondelete="CASCADE"), nullable=False
+    )
     name = Column(String(256), nullable=False)
     qualified_name = Column(String(512), nullable=False)
     kind = Column(String(16), nullable=False)
@@ -89,8 +91,12 @@ class Edge(Base):
 
     id = Column(Integer, primary_key=True)
     repo_id = Column(BigInteger, nullable=False)
-    src_symbol_id = Column(Integer, ForeignKey("symbols.id", ondelete="CASCADE"), nullable=False)
-    dst_symbol_id = Column(Integer, ForeignKey("symbols.id", ondelete="SET NULL"), nullable=True)
+    src_symbol_id = Column(
+        Integer, ForeignKey("symbols.id", ondelete="CASCADE"), nullable=False
+    )
+    dst_symbol_id = Column(
+        Integer, ForeignKey("symbols.id", ondelete="SET NULL"), nullable=True
+    )
     dst_qualified_name = Column(String(512), nullable=False)
     kind = Column(String(16), nullable=False)
 
@@ -112,12 +118,18 @@ def make_engine(url: str) -> Engine:
     """
     engine = create_engine(url)
 
-    # For SQLite, enable foreign key constraints on each connection
-    @event.listens_for(engine, "connect")
-    def set_sqlite_pragma(dbapi_conn, connection_record):
-        cursor = dbapi_conn.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
+    # For SQLite, enable foreign key constraints on each connection. This is
+    # a SQLite-only pragma: on Postgres (or any other dialect) it's a syntax
+    # error, so only register the listener when the engine is actually
+    # sqlite -- never register it, rather than register-then-no-op, so a
+    # non-sqlite engine never even attempts the statement.
+    if engine.dialect.name == "sqlite":
+
+        @event.listens_for(engine, "connect")
+        def set_sqlite_pragma(dbapi_conn, connection_record):
+            cursor = dbapi_conn.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
 
     return engine
 
