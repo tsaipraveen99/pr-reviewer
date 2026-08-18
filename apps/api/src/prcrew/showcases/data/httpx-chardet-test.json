@@ -1,0 +1,120 @@
+{
+  "slug": "httpx-chardet-test",
+  "title": "httpx: adapt autodetect test for chardet 6.0",
+  "pr_url": "https://github.com/encode/httpx/pull/3773",
+  "recorded_at": "2026-08-18T02:29:19.211575+00:00",
+  "events": [
+    {
+      "type": "node_started",
+      "node": "intake",
+      "seq": 1,
+      "at_ms": 30
+    },
+    {
+      "type": "node_finished",
+      "node": "intake",
+      "seq": 2,
+      "at_ms": 30
+    },
+    {
+      "type": "node_started",
+      "node": "correctness",
+      "seq": 3,
+      "at_ms": 31
+    },
+    {
+      "type": "node_started",
+      "node": "intent",
+      "seq": 4,
+      "at_ms": 34
+    },
+    {
+      "type": "node_started",
+      "node": "security",
+      "seq": 5,
+      "at_ms": 35
+    },
+    {
+      "type": "node_started",
+      "node": "tests",
+      "seq": 6,
+      "at_ms": 36
+    },
+    {
+      "type": "node_finished",
+      "node": "intent",
+      "seq": 7,
+      "at_ms": 955
+    },
+    {
+      "type": "node_finished",
+      "node": "security",
+      "seq": 8,
+      "at_ms": 956
+    },
+    {
+      "type": "finding",
+      "node": "tests",
+      "finding": {
+        "agent": "tests",
+        "file": "tests/models/test_responses.py",
+        "line": 1014,
+        "severity": "minor",
+        "claim": "Test assertion weakened to accept multiple encoding values without verifying both decode to the same text",
+        "evidence": "assert response.encoding in (\"ISO-8859-1\", \"WINDOWS-1252\")\n     assert response.text == text"
+      },
+      "seq": 9,
+      "at_ms": 1498
+    },
+    {
+      "type": "node_finished",
+      "node": "tests",
+      "seq": 10,
+      "at_ms": 1498
+    },
+    {
+      "type": "node_finished",
+      "node": "correctness",
+      "seq": 11,
+      "at_ms": 2654
+    },
+    {
+      "type": "node_started",
+      "node": "verifier",
+      "seq": 12,
+      "at_ms": 2655
+    },
+    {
+      "type": "verified",
+      "confirmed": 0,
+      "rejected": 1,
+      "seq": 13,
+      "at_ms": 4813
+    },
+    {
+      "type": "node_finished",
+      "node": "verifier",
+      "seq": 14,
+      "at_ms": 4813
+    },
+    {
+      "type": "node_started",
+      "node": "synthesizer",
+      "seq": 15,
+      "at_ms": 4813
+    },
+    {
+      "type": "review_complete",
+      "review": "## Verdict\n\nNo issues found. This is a small, low-risk test-only change that adapts `test_response_decode_text_using_autodetect` for compatibility with chardet 6.0. The panel found nothing to flag.\n\n## Findings\n\nNone.\n\n**Note:** The panel did not have access to the actual diff/CI output for this PR, so this review is based solely on the absence of reported findings rather than an independent line-by-line verification of the chardet 6.0 behavioral changes (e.g., confidence score or encoding label differences) that motivated the fix.",
+      "seq": 16,
+      "at_ms": 8109
+    },
+    {
+      "type": "node_finished",
+      "node": "synthesizer",
+      "seq": 17,
+      "at_ms": 8109
+    }
+  ],
+  "review": "## Verdict\n\nNo issues found. This is a small, low-risk test-only change that adapts `test_response_decode_text_using_autodetect` for compatibility with chardet 6.0. The panel found nothing to flag.\n\n## Findings\n\nNone.\n\n**Note:** The panel did not have access to the actual diff/CI output for this PR, so this review is based solely on the absence of reported findings rather than an independent line-by-line verification of the chardet 6.0 behavioral changes (e.g., confidence score or encoding label differences) that motivated the fix."
+}
