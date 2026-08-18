@@ -4,6 +4,8 @@ import { ReviewPane } from "./components/ReviewPane";
 import { ShowcaseGallery } from "./components/ShowcaseGallery";
 import { useReviewRun } from "./hooks/useReviewRun";
 
+const GITHUB_URL: string = import.meta.env.VITE_GITHUB_URL ?? "https://github.com/tsaipraveen99/pr-crew";
+
 function App() {
   const { view, running, start, replay } = useReviewRun();
 
@@ -18,7 +20,7 @@ function App() {
             </p>
           </div>
           <a
-            href="https://github.com/"
+            href={GITHUB_URL}
             target="_blank"
             rel="noreferrer"
             className="mt-1 text-sm text-zinc-400 underline decoration-zinc-700 underline-offset-4 hover:text-zinc-100"

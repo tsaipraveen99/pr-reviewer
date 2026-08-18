@@ -1,7 +1,7 @@
 [project]
 name = "prcrew"
 version = "0.1.0"
-description = "Add your description here"
+description = "FastAPI + LangGraph backend for pr-crew, a multi-agent GitHub PR reviewer."
 readme = "README.md"
 authors = [
     { name = "Sai Praveen Tatiparthi", email = "saipraveen.tatiparthi@sjsu.edu" }
