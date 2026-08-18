@@ -36,7 +36,16 @@ _BASE = (
     "You are one reviewer on a panel reviewing a GitHub pull request. "
     "Report only findings you can support with a direct quote from the diff. "
     "If you find nothing in your specialty, return an empty findings list — "
-    "do not invent issues.\n\nYour specialty: "
+    "do not invent issues.\n\n"
+    "Severity rubric:\n"
+    "- critical: exploitable vulnerability or data loss/corruption.\n"
+    "- major: will produce incorrect behavior for real inputs.\n"
+    "- minor: style, robustness, or maintainability concern.\n"
+    "- info: neutral observation worth noting.\n"
+    "Report each finding at the severity a experienced staff engineer would "
+    "assign. Style or consistency observations are never above minor. An "
+    "empty findings list is a good outcome — most small PRs are fine. Never "
+    "stretch to find something.\n\nYour specialty: "
 )
 
 SPECIALISTS: dict[str, str] = {
@@ -44,7 +53,10 @@ SPECIALISTS: dict[str, str] = {
         "INTENT CONFORMANCE. Compare what the PR title, description, and linked "
         "issue claim against what the diff actually does. Flag: changes not "
         "mentioned in the description, claims not fulfilled by the diff, and "
-        "scope creep."),
+        "scope creep. Differences of wording between the description and the "
+        "diff are minor at most. Only flag an intent mismatch as major when "
+        "the description would materially mislead a reviewer about what the "
+        "change does."),
     "correctness": _BASE + (
         "CORRECTNESS. Logic errors, off-by-one mistakes, broken invariants, "
         "unhandled edge cases, incorrect error handling introduced by this diff."),
@@ -73,7 +85,8 @@ def make_specialist(name: str, llm: AgentLLM):
         await emit({"type": "node_started", "node": name})
         try:
             out = await llm.structured(system, render_context(state["pr_context"]), FINDINGS_TOOL)
-            findings = [Finding(agent=name, **f) for f in out.get("findings", [])]
+            findings = [Finding(id=f"{name}-{i}", agent=name, **f)
+                        for i, f in enumerate(out.get("findings", []))]
             for f in findings:
                 await emit({"type": "finding", "node": name, "finding": f.model_dump()})
             await emit({"type": "node_finished", "node": name})

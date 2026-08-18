@@ -16,6 +16,7 @@ class PRContext(BaseModel):
     changed_lines: int
 
 class Finding(BaseModel):
+    id: str = ""
     agent: str
     file: str
     line: int | None = None
