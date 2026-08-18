@@ -11,6 +11,9 @@ export function useReviewRun() {
   const source = useRef<EventSource | null>(null);
   const timers = useRef<number[]>([]);
   const terminalReached = useRef(false);
+  // Bumped by every start()/replay() so an in-flight fallback fetch from a
+  // superseded run can detect it's stale and avoid dispatching into the new run.
+  const generation = useRef(0);
 
   const stop = () => {
     source.current?.close();
@@ -30,6 +33,8 @@ export function useReviewRun() {
   const start = useCallback(async (prUrl: string) => {
     stop();
     terminalReached.current = false;
+    generation.current += 1;
+    const gen = generation.current;
     setView(initialView());
     setRunning(true);
     const { run_id } = await startReview(prUrl); // ApiError propagates to the form
@@ -46,13 +51,20 @@ export function useReviewRun() {
       // via refetch when no terminal event has been seen yet.
       if (terminalReached.current) return;
       fetchReview(run_id)
-        .then(({ status, result }) => reviewResultToEvents(status, result).forEach(dispatch))
-        .catch(() => reviewResultToEvents("error", null).forEach(dispatch));
+        .then(({ status, result }) => {
+          if (generation.current !== gen) return; // superseded by a later start()/replay()
+          reviewResultToEvents(status, result).forEach(dispatch);
+        })
+        .catch(() => {
+          if (generation.current !== gen) return; // superseded by a later start()/replay()
+          reviewResultToEvents("error", null).forEach(dispatch);
+        });
     };
   }, []);
 
   const replay = useCallback(async (slug: string) => {
     stop();
+    generation.current += 1;
     setView(initialView());
     setRunning(true);
     const sc = await fetchShowcase(slug);
