@@ -51,12 +51,16 @@ def test_incremental_fetch_new_sha(tmp_path):
 
 
 def test_clone_error_scrubs_token(tmp_path):
+    # Token and URL live in variables so the test's own source lines (echoed
+    # in tracebacks) don't contain the literal — the assertion below then
+    # genuinely tests the exception-chain path, not the test file itself.
+    secret = "SECRET" + "TOKEN"
+    url = f"https://x-access-token:{secret}@127.0.0.1:1/none.git"
     with pytest.raises(CloneError) as exc:
-        ensure_clone("https://x-access-token:SECRETTOKEN@127.0.0.1:1/none.git",
-                     tmp_path / "c", 1, "a" * 40, token="SECRETTOKEN")
-    assert "SECRETTOKEN" not in str(exc.value)
-    # The chained traceback is what logger.exception prints — it must not
-    # resurrect the token via CalledProcessError.cmd.
+        ensure_clone(url, tmp_path / "c", 1, "a" * 40, token=secret)
+    assert secret not in str(exc.value)
+    # The full formatted traceback is what logger.exception prints — the
+    # suppressed chain must not resurrect the token via CalledProcessError.cmd.
     import traceback
     chain = "".join(traceback.format_exception(exc.value))
-    assert "SECRETTOKEN" not in chain
+    assert secret not in chain
