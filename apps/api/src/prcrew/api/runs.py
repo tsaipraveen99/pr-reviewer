@@ -76,6 +76,23 @@ class RunManager:
             async with run.condition:
                 run.condition.notify_all()
 
+        async def persist_then_finish(status: str) -> None:
+            # Persist BEFORE flipping run.status: a second RunManager (e.g.
+            # after a process restart) only ever sees a run via the store, so
+            # if run.status flips to a terminal value in memory before the
+            # store write commits, a concurrent restart-and-fetch can 404 on
+            # a run this process considers "done". A save failure must not
+            # hang the API's in-memory view forever -- log it and still
+            # advance run.status so /reviews/{id} keeps working from memory.
+            if self._store is not None:
+                usage = run.result.get("usage") if run.result is not None else None
+                try:
+                    await self._store.save(
+                        run.id, run.pr_url, status, run.result, run.events, usage)
+                except Exception:
+                    logger.exception("run %s failed to persist", run.id)
+            run.status = status
+
         try:
             result = await self._graph.ainvoke(
                 {"pr_context": pr_context}, {"configurable": {"emit": emit}}
@@ -97,14 +114,9 @@ class RunManager:
             # before the terminal event is appended and close the stream
             # without ever delivering it.
             await emit({"type": "done"})
-            run.status = "done"
+            await persist_then_finish("done")
         except Exception:
             # Never surface raw exception text to anonymous clients.
             logger.exception("run %s failed", run.id)
             await emit({"type": "run_failed", "error": "internal error running the review"})
-            run.status = "failed"
-        finally:
-            if self._store is not None:
-                usage = run.result.get("usage") if run.result is not None else None
-                await self._store.save(
-                    run.id, run.pr_url, run.status, run.result, run.events, usage)
+            await persist_then_finish("failed")
