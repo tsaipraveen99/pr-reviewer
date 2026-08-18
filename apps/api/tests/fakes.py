@@ -1,14 +1,19 @@
 class FakeLLM:
     """Drop-in for AgentLLM in tests. `responses` is popped per call;
-    an Exception instance is raised instead of returned."""
-    def __init__(self, responses: list):
+    an Exception instance is raised instead of returned. Each successful
+    call returns a fixed nominal usage alongside the payload so cost/token
+    aggregation is assertable. `model` defaults to a priced model so
+    cost_usd(...) resolves to a real number in tests that don't care about
+    pricing specifically."""
+    def __init__(self, responses: list, model: str = "claude-sonnet-5-20260101"):
         self.responses = list(responses)
         self.calls: list[tuple[str, str]] = []
+        self.model = model
 
-    async def structured(self, system: str, user: str, tool: dict) -> dict:
+    async def structured(self, system: str, user: str, tool: dict) -> tuple[dict, dict]:
         return self._next(system, user)
 
-    async def text(self, system: str, user: str) -> str:
+    async def text(self, system: str, user: str) -> tuple[str, dict]:
         return self._next(system, user)
 
     def _next(self, system, user):
@@ -16,4 +21,4 @@ class FakeLLM:
         item = self.responses.pop(0)
         if isinstance(item, Exception):
             raise item
-        return item
+        return item, {"input_tokens": 100, "output_tokens": 50}

@@ -25,6 +25,11 @@ async def test_full_graph_run():
     # verifier ran after all four specialists
     assert started.index("verifier") > max(started.index(s)
         for s in ["intent", "correctness", "tests", "security"])
+    # 4 specialists + verifier + synthesizer each contributed one NodeUsage
+    assert len(result["usage"]) == 6
+    assert {u.node for u in result["usage"]} == \
+        {"intent", "correctness", "tests", "security", "verifier", "synthesizer"}
+    assert all(u.cost_usd is not None for u in result["usage"])
 
 async def test_graph_completes_with_partial_failure():
     # NOTE: FakeLLM has no retry; AgentLLM does. One RuntimeError = one failed node here.

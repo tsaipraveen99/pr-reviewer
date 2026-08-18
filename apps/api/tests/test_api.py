@@ -48,6 +48,8 @@ def test_post_review_starts_run():
             if status["status"] == "done": break
             time.sleep(0.05)
         assert status["result"]["review"] == "## R"
+        assert status["result"]["usage"]["input_tokens"] > 0
+        assert status["result"]["usage"]["cost_usd"] > 0
 
 @pytest.mark.parametrize("error,code", [
     (PrivateRepoError("private"), 403),

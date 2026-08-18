@@ -65,9 +65,16 @@ class RunManager:
             result = await self._graph.ainvoke(
                 {"pr_context": pr_context}, {"configurable": {"emit": emit}}
             )
+            usage_list = result.get("usage", [])
             run.result = {
                 "review": result.get("review", ""),
                 "verified": [v.model_dump() for v in result.get("verified", [])],
+                "usage": {
+                    "input_tokens": sum(u.input_tokens for u in usage_list),
+                    "output_tokens": sum(u.output_tokens for u in usage_list),
+                    "cost_usd": round(
+                        sum(u.cost_usd for u in usage_list if u.cost_usd is not None), 6),
+                },
             }
             # Emit the terminal event before flipping status: the SSE
             # generator's fallback exit checks `run.status != "running"`, so

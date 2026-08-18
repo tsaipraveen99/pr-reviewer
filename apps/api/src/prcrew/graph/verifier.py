@@ -3,7 +3,8 @@ from langchain_core.runnables import RunnableConfig
 from prcrew.graph.events import emit_from
 from prcrew.graph.specialists import render_context
 from prcrew.llm import AgentLLM
-from prcrew.models import Finding, NodeError, VerifiedFinding
+from prcrew.models import Finding, NodeError, NodeUsage, VerifiedFinding
+from prcrew.pricing import cost_usd
 
 VERDICTS_TOOL = {
     "name": "report_verdicts",
@@ -67,8 +68,10 @@ def make_verifier(llm: AgentLLM):
             f"[{i}] ({f.agent}, {f.severity}) {f.file}:{f.line} — {f.claim}\n"
             f"    evidence: {f.evidence}" for i, f in enumerate(flat))
         user = f"{render_context(state['pr_context'])}\n\nFindings to verify:\n{numbered}"
+        usage: dict | None = None
+        cost: float | None = None
         try:
-            out = await llm.structured(_SYSTEM, user, VERDICTS_TOOL)
+            out, usage = await llm.structured(_SYSTEM, user, VERDICTS_TOOL)
             by_index = {v["index"]: v for v in out["verdicts"]}
             verified = []
             for i, f in enumerate(flat):
@@ -82,6 +85,7 @@ def make_verifier(llm: AgentLLM):
                     **data, verdict=verdict,
                     reason=v.get("reason", "no verdict returned")))
             errors: list[NodeError] = []
+            cost = cost_usd(llm.model, usage["input_tokens"], usage["output_tokens"])
             for vf in verified:
                 await emit({"type": "finding_verdict", "id": vf.id, "verdict": vf.verdict,
                             "severity": vf.severity, "reason": vf.reason})
@@ -92,10 +96,17 @@ def make_verifier(llm: AgentLLM):
         confirmed = sum(1 for v in verified if v.verdict == "confirmed")
         await emit({"type": "verified", "confirmed": confirmed,
                     "rejected": len(verified) - confirmed})
-        await emit({"type": "node_finished", "node": "verifier"})
+        finished: dict = {"type": "node_finished", "node": "verifier"}
+        if usage is not None:
+            finished["usage"] = usage
+            finished["cost_usd"] = cost
+        await emit(finished)
         result: dict = {"verified": verified}
         if errors:
             result["errors"] = errors
+        if usage is not None:
+            result["usage"] = [NodeUsage(node="verifier", input_tokens=usage["input_tokens"],
+                                         output_tokens=usage["output_tokens"], cost_usd=cost)]
         return result
 
     return node

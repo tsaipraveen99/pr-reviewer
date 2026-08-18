@@ -2,7 +2,8 @@ from langchain_core.runnables import RunnableConfig
 
 from prcrew.graph.events import emit_from
 from prcrew.llm import AgentLLM
-from prcrew.models import VerifiedFinding
+from prcrew.models import NodeUsage, VerifiedFinding
+from prcrew.pricing import cost_usd
 
 _SYSTEM = (
     "You are the lead reviewer writing the final review for a pull request, "
@@ -35,12 +36,23 @@ def make_synthesizer(llm: AgentLLM):
         note = f"\n\nAgents that failed and whose perspective is missing: {', '.join(failed)}" if failed else ""
         user = (f"PR: {ctx.owner}/{ctx.repo}#{ctx.number} — {ctx.title}\n\n"
                 f"Confirmed findings:\n{findings_text}{note}")
+        usage: dict | None = None
+        cost: float | None = None
         try:
-            review = await llm.text(_SYSTEM, user)
+            review, usage = await llm.text(_SYSTEM, user)
+            cost = cost_usd(llm.model, usage["input_tokens"], usage["output_tokens"])
         except Exception:  # noqa: BLE001
             review = _fallback(confirmed)
         await emit({"type": "review_complete", "review": review})
-        await emit({"type": "node_finished", "node": "synthesizer"})
-        return {"review": review}
+        finished: dict = {"type": "node_finished", "node": "synthesizer"}
+        if usage is not None:
+            finished["usage"] = usage
+            finished["cost_usd"] = cost
+        await emit(finished)
+        result: dict = {"review": review}
+        if usage is not None:
+            result["usage"] = [NodeUsage(node="synthesizer", input_tokens=usage["input_tokens"],
+                                         output_tokens=usage["output_tokens"], cost_usd=cost)]
+        return result
 
     return node

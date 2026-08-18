@@ -2,7 +2,8 @@ from langchain_core.runnables import RunnableConfig
 
 from prcrew.graph.events import emit_from
 from prcrew.llm import AgentLLM
-from prcrew.models import Finding, NodeError, PRContext
+from prcrew.models import Finding, NodeError, NodeUsage, PRContext
+from prcrew.pricing import cost_usd
 
 FINDINGS_TOOL = {
     "name": "report_findings",
@@ -84,13 +85,17 @@ def make_specialist(name: str, llm: AgentLLM):
         emit = emit_from(config)
         await emit({"type": "node_started", "node": name})
         try:
-            out = await llm.structured(system, render_context(state["pr_context"]), FINDINGS_TOOL)
+            out, usage = await llm.structured(
+                system, render_context(state["pr_context"]), FINDINGS_TOOL)
             findings = [Finding(id=f"{name}-{i}", agent=name, **f)
                         for i, f in enumerate(out.get("findings", []))]
             for f in findings:
                 await emit({"type": "finding", "node": name, "finding": f.model_dump()})
-            await emit({"type": "node_finished", "node": name})
-            return {"findings": {name: findings}}
+            cost = cost_usd(llm.model, usage["input_tokens"], usage["output_tokens"])
+            await emit({"type": "node_finished", "node": name, "usage": usage, "cost_usd": cost})
+            node_usage = NodeUsage(node=name, input_tokens=usage["input_tokens"],
+                                   output_tokens=usage["output_tokens"], cost_usd=cost)
+            return {"findings": {name: findings}, "usage": [node_usage]}
         except Exception as e:  # noqa: BLE001
             await emit({"type": "node_failed", "node": name, "error": str(e)})
             return {"errors": [NodeError(node=name, message=str(e))], "findings": {name: []}}

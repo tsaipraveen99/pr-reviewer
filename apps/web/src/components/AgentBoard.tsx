@@ -1,5 +1,6 @@
+import { formatCost, formatTokens } from "../lib/format";
 import { AGENT_ORDER } from "../lib/reducer";
-import type { AgentStatus, FindingView, RunView } from "../lib/types";
+import type { AgentStatus, FindingView, RunView, Usage } from "../lib/types";
 
 const STATUS_DOT: Record<AgentStatus, string> = {
   queued: "status-dot-queued",
@@ -49,7 +50,14 @@ function FindingRow({ finding }: { finding: FindingView }) {
   );
 }
 
-function AgentCard({ name, status, findings }: { name: string; status: AgentStatus; findings: FindingView[] }) {
+function TokenFooter({ usage }: { usage?: Usage }) {
+  const label = formatTokens(usage);
+  if (!label) return null;
+  return <p className="mono text-[11px] text-secondary">{label}</p>;
+}
+
+function AgentCard({ name, status, findings, usage }:
+  { name: string; status: AgentStatus; findings: FindingView[]; usage?: Usage }) {
   const role = ROLE_DESCRIPTION[name];
   return (
     <div className="panel flex flex-col gap-2 p-4">
@@ -73,11 +81,13 @@ function AgentCard({ name, status, findings }: { name: string; status: AgentStat
           ))}
         </ul>
       )}
+      <TokenFooter usage={usage} />
     </div>
   );
 }
 
-function VerifierCard({ status, confirmed, rejected }: { status: AgentStatus; confirmed: number; rejected: number }) {
+function VerifierCard({ status, confirmed, rejected, usage }:
+  { status: AgentStatus; confirmed: number; rejected: number; usage?: Usage }) {
   return (
     <div className="panel flex flex-col gap-2 p-4">
       <div className="flex items-center gap-2">
@@ -89,17 +99,37 @@ function VerifierCard({ status, confirmed, rejected }: { status: AgentStatus; co
         <span className="text-ok">{confirmed} confirmed ✓</span>
         <span className="text-err">{rejected} rejected ✕</span>
       </p>
+      <TokenFooter usage={usage} />
     </div>
+  );
+}
+
+/** Total tokens/cost chip; omits the cost segment while it's zero or unknown. */
+export function UsageTotals({ totals }: { totals: RunView["totals"] }) {
+  if (totals.inputTokens === 0 && totals.outputTokens === 0) return null;
+  const total = totals.inputTokens + totals.outputTokens;
+  const costSuffix = totals.costUsd > 0 ? ` · ${formatCost(totals.costUsd)}` : "";
+  return (
+    <p className="mono text-[11px] text-secondary">
+      {total.toLocaleString()} tokens{costSuffix}
+    </p>
   );
 }
 
 export function AgentBoard({ view }: { view: RunView }) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      {AGENT_ORDER.map(name => (
-        <AgentCard key={name} name={name} status={view.agents[name].status} findings={view.agents[name].findings} />
-      ))}
-      <VerifierCard status={view.verifier.status} confirmed={view.verifier.confirmed} rejected={view.verifier.rejected} />
+    <div className="flex flex-col gap-3">
+      <div className="flex justify-end">
+        <UsageTotals totals={view.totals} />
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {AGENT_ORDER.map(name => (
+          <AgentCard key={name} name={name} status={view.agents[name].status}
+            findings={view.agents[name].findings} usage={view.agents[name].usage} />
+        ))}
+        <VerifierCard status={view.verifier.status} confirmed={view.verifier.confirmed}
+          rejected={view.verifier.rejected} usage={view.verifier.usage} />
+      </div>
     </div>
   );
 }

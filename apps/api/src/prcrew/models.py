@@ -31,3 +31,9 @@ class VerifiedFinding(Finding):
 class NodeError(BaseModel):
     node: str
     message: str
+
+class NodeUsage(BaseModel):
+    node: str
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float | None = None

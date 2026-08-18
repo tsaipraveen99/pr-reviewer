@@ -95,6 +95,33 @@ describe("reduce", () => {
     expect(v).toEqual(before);
   });
 
+  it("stores usage/cost on the agent and accumulates totals on node_finished", () => {
+    let v = initialView();
+    v = reduce(v, ev({ type: "node_finished", node: "correctness",
+      usage: { input_tokens: 100, output_tokens: 50 }, cost_usd: 0.00105 }));
+    expect(v.agents.correctness.usage).toEqual({ input_tokens: 100, output_tokens: 50 });
+    expect(v.agents.correctness.cost_usd).toBe(0.00105);
+    expect(v.totals).toEqual({ inputTokens: 100, outputTokens: 50, costUsd: 0.00105 });
+    v = reduce(v, ev({ type: "node_finished", node: "security",
+      usage: { input_tokens: 20, output_tokens: 10 }, cost_usd: null }));
+    expect(v.totals).toEqual({ inputTokens: 120, outputTokens: 60, costUsd: 0.00105 });
+  });
+
+  it("tolerates node_finished with no usage (old showcases, or the verifier's no-findings skip path)", () => {
+    let v = initialView();
+    v = reduce(v, ev({ type: "node_finished", node: "correctness" }));
+    expect(v.agents.correctness.status).toBe("done");
+    expect(v.agents.correctness.usage).toBeUndefined();
+    expect(v.totals).toEqual({ inputTokens: 0, outputTokens: 0, costUsd: 0 });
+  });
+
+  it("stores usage/cost on the verifier view too", () => {
+    let v = reduce(initialView(), ev({ type: "node_finished", node: "verifier",
+      usage: { input_tokens: 5, output_tokens: 5 }, cost_usd: 0.001 }));
+    expect(v.verifier.usage).toEqual({ input_tokens: 5, output_tokens: 5 });
+    expect(v.verifier.cost_usd).toBe(0.001);
+  });
+
   it("returns the view unchanged for an unrecognized event type instead of crashing", () => {
     const base = initialView();
     expect(reduce(base, ev({ type: "bogus_future_event", whatever: 1 }))).toEqual(base);

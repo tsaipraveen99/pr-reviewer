@@ -1,3 +1,5 @@
+import pytest
+
 from prcrew.graph.specialists import SPECIALISTS, make_specialist, render_context
 from prcrew.models import PRContext
 from tests.fakes import FakeLLM
@@ -22,6 +24,17 @@ async def test_specialist_returns_findings_and_emits():
     assert [e["type"] for e in events] == ["node_started", "finding", "node_finished"]
     # the specialist saw the PR context
     assert "Fix parser" in llm.calls[0][1]
+
+async def test_specialist_node_finished_carries_usage_and_cost():
+    llm = FakeLLM([{"findings": []}])
+    node = make_specialist("correctness", llm)
+    events, config = collector()
+    out = await node({"pr_context": CTX}, config)
+    finished = next(e for e in events if e["type"] == "node_finished")
+    assert finished["usage"] == {"input_tokens": 100, "output_tokens": 50}
+    assert finished["cost_usd"] == pytest.approx(0.00105)
+    assert out["usage"][0].node == "correctness"
+    assert out["usage"][0].cost_usd == pytest.approx(0.00105)
 
 async def test_specialist_failure_records_error_not_crash():
     llm = FakeLLM([RuntimeError("api down")])

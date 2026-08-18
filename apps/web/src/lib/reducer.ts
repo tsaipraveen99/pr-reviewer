@@ -7,6 +7,7 @@ export function initialView(): RunView {
     agents: Object.fromEntries(AGENT_ORDER.map(n => [n, { status: "queued", findings: [] }])),
     verifier: { status: "queued", confirmed: 0, rejected: 0 },
     review: null, error: null, done: false,
+    totals: { inputTokens: 0, outputTokens: 0, costUsd: 0 },
   };
 }
 
@@ -22,7 +23,19 @@ export function reduce(view: RunView, ev: StreamEvent): RunView {
 
   switch (ev.type) {
     case "node_started": return setAgent(ev.node, { status: "running" });
-    case "node_finished": return setAgent(ev.node, { status: "done" });
+    case "node_finished": {
+      const patch: { status: "done"; usage?: typeof ev.usage; cost_usd?: typeof ev.cost_usd } =
+        { status: "done" };
+      if (ev.usage) patch.usage = ev.usage;
+      if (ev.cost_usd !== undefined) patch.cost_usd = ev.cost_usd;
+      const next = setAgent(ev.node, patch);
+      if (!ev.usage) return next;
+      return { ...next, totals: {
+        inputTokens: next.totals.inputTokens + ev.usage.input_tokens,
+        outputTokens: next.totals.outputTokens + ev.usage.output_tokens,
+        costUsd: next.totals.costUsd + (typeof ev.cost_usd === "number" ? ev.cost_usd : 0),
+      } };
+    }
     case "node_failed": return setAgent(ev.node, { status: "failed" });
     case "finding": {
       const agent = view.agents[ev.node];

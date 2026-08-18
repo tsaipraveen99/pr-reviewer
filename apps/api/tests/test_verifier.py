@@ -1,3 +1,5 @@
+import pytest
+
 from prcrew.graph.verifier import make_verifier
 from prcrew.models import Finding
 from tests.fakes import FakeLLM
@@ -29,10 +31,25 @@ async def test_verifier_failure_passes_findings_through():
 
 async def test_verifier_skips_llm_when_no_findings():
     llm = FakeLLM([])
-    _events, config = collector()
+    events, config = collector()
     out = await make_verifier(llm)({"pr_context": CTX, "findings": {"intent": []}}, config)
     assert out["verified"] == []
     assert llm.calls == []
+    # No LLM call means no usage keys on node_finished, and no usage in state.
+    finished = next(e for e in events if e["type"] == "node_finished")
+    assert "usage" not in finished and "cost_usd" not in finished
+    assert "usage" not in out
+
+async def test_verifier_node_finished_carries_usage_and_cost():
+    llm = FakeLLM([{"verdicts": [
+        {"index": 0, "verdict": "confirmed", "reason": "evidence matches diff"}]}])
+    events, config = collector()
+    out = await make_verifier(llm)(
+        {"pr_context": CTX, "findings": {"correctness": [F1]}}, config)
+    finished = next(e for e in events if e["type"] == "node_finished")
+    assert finished["usage"] == {"input_tokens": 100, "output_tokens": 50}
+    assert finished["cost_usd"] == pytest.approx(0.00105)
+    assert out["usage"][0].node == "verifier"
 
 async def test_verifier_applies_corrected_severity_to_confirmed_finding():
     llm = FakeLLM([{"verdicts": [

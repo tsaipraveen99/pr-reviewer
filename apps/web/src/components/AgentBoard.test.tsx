@@ -60,6 +60,32 @@ describe("AgentBoard", () => {
     expect(screen.getByText("✕ rejected")).toBeInTheDocument();
   });
 
+  it("shows a compact token count on a card that has usage", () => {
+    let v = initialView();
+    v = reduce(v, ev({ type: "node_finished", node: "correctness",
+      usage: { input_tokens: 900, output_tokens: 200 }, cost_usd: 0.005 }));
+    render(<AgentBoard view={v} />);
+    expect(screen.getByText("1.1k tok")).toBeInTheDocument();
+  });
+
+  it("omits the token footer when a card has no usage (old showcases)", () => {
+    render(<AgentBoard view={initialView()} />);
+    expect(screen.queryByText(/tok$/)).not.toBeInTheDocument();
+  });
+
+  it("shows a total tokens · cost chip once any usage has accrued", () => {
+    let v = initialView();
+    v = reduce(v, ev({ type: "node_finished", node: "correctness",
+      usage: { input_tokens: 100, output_tokens: 50 }, cost_usd: 0.00105 }));
+    render(<AgentBoard view={v} />);
+    expect(screen.getByText(/150 tokens · \$0\.001/)).toBeInTheDocument();
+  });
+
+  it("omits the totals chip when no usage has accrued yet", () => {
+    render(<AgentBoard view={initialView()} />);
+    expect(screen.queryByText(/tokens ·/)).not.toBeInTheDocument();
+  });
+
   it("renders a confirmed finding with a confirmed mark", () => {
     let v = initialView();
     v = reduce(v, ev({ type: "finding", node: "security",
