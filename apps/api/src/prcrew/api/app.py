@@ -1,10 +1,22 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
 from prcrew.settings import Settings
+
+
+def client_ip(request: Request) -> str:
+    """Rate-limit key that survives a trusted edge proxy (e.g. Railway).
+
+    The RIGHTMOST X-Forwarded-For entry is the one appended by the trusted
+    edge; entries further left are client-spoofable. Without the header,
+    fall back to the socket peer address.
+    """
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[-1].strip()
+    return request.client.host if request.client else "127.0.0.1"
 
 
 def create_app(run_manager=None, github=None, settings: Settings | None = None) -> FastAPI:
@@ -22,7 +34,7 @@ def create_app(run_manager=None, github=None, settings: Settings | None = None) 
     app = FastAPI(title="pr-crew")
     app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins.split(","),
                        allow_methods=["*"], allow_headers=["*"])
-    limiter = Limiter(key_func=get_remote_address)
+    limiter = Limiter(key_func=client_ip)
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 

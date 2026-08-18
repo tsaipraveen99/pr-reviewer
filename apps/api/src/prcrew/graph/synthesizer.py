@@ -12,10 +12,13 @@ _SYSTEM = (
     "direct and specific; do not pad. If there are no findings, say the PR "
     "looks good and note anything the panel could not check.")
 
+def _location(f: VerifiedFinding) -> str:
+    return f"{f.file}:{f.line}" if f.line is not None else f.file
+
 def _fallback(confirmed: list[VerifiedFinding]) -> str:
     if not confirmed:
         return "## Review\n\nNo confirmed findings."
-    rows = "\n".join(f"| {f.severity} | `{f.file}:{f.line}` | {f.claim} |" for f in confirmed)
+    rows = "\n".join(f"| {f.severity} | `{_location(f)}` | {f.claim} |" for f in confirmed)
     return ("## Review\n\n(Synthesis unavailable — raw confirmed findings.)\n\n"
             "| Severity | Location | Finding |\n|---|---|---|\n" + rows)
 

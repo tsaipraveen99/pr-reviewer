@@ -4,7 +4,8 @@ from dataclasses import dataclass, field
 
 @dataclass
 class Settings:
-    anthropic_api_key: str = field(default_factory=lambda: os.environ.get("ANTHROPIC_API_KEY", ""))
+    # Note: the anthropic SDK reads ANTHROPIC_API_KEY from the environment
+    # directly, so it is intentionally not mirrored here.
     github_token: str = field(default_factory=lambda: os.environ.get("GITHUB_TOKEN", ""))
     specialist_model: str = field(default_factory=lambda: os.environ.get(
         "SPECIALIST_MODEL", "claude-haiku-4-5-20251001"))
