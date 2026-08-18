@@ -45,7 +45,7 @@ export function useReviewRun() {
     es.onmessage = e => dispatch(JSON.parse(e.data));
     // sse-starlette sends named events; listen to each type explicitly
     ["node_started", "finding", "node_finished", "node_failed",
-     "verified", "review_complete", "done", "run_failed"].forEach(t =>
+     "verified", "finding_verdict", "review_complete", "done", "run_failed"].forEach(t =>
       es.addEventListener(t, e => dispatch(JSON.parse((e as MessageEvent).data))));
     es.onerror = () => {
       stop();

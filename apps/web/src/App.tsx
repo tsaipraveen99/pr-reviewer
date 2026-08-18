@@ -30,8 +30,11 @@ function App() {
         </header>
 
         <PRForm running={running} onSubmit={start} />
-        <AgentBoard view={view} />
+        {/* The verdict sits directly under the form, above the board, so it's
+            visible without scrolling past the specialist cards once a run
+            completes. */}
         <ReviewPane view={view} />
+        <AgentBoard view={view} />
         <ShowcaseGallery running={running} onReplay={replay} />
       </div>
     </div>
