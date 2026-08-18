@@ -1,4 +1,3 @@
-import asyncio
 import json
 
 from fastapi import APIRouter, HTTPException, Request
@@ -50,18 +49,15 @@ def make_router(run_manager: RunManager, github, limiter, limit_str: str) -> API
             idx = 0
             while True:
                 while idx < len(run.events):
-                    ev = run.events[idx]; idx += 1
+                    ev = run.events[idx]
+                    idx += 1
                     yield {"event": ev["type"], "data": json.dumps(ev)}
                     if ev["type"] in TERMINAL:
                         return
                 if run.status != "running" and idx >= len(run.events):
                     return
-                # `run.events` is written from RunManager's dedicated
-                # background loop (see RunManager docstring), so we poll it
-                # rather than block on `run.queue`, which would be awaited
-                # here on a different event loop than the one that would
-                # write it.
-                await asyncio.sleep(0.02)
+                await run.queue.get()  # wait for next live event
+                # loop re-reads run.events from idx, so nothing is skipped
         return EventSourceResponse(gen())
 
     return router
