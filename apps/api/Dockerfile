@@ -3,7 +3,8 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
-COPY README.md ./
+COPY README.md alembic.ini ./
+COPY alembic ./alembic
 COPY src ./src
 RUN uv sync --frozen --no-dev
 EXPOSE 8000
