@@ -1,3 +1,5 @@
+from langchain_core.runnables import RunnableConfig
+
 from prcrew.graph.events import emit_from
 from prcrew.llm import AgentLLM
 from prcrew.models import Finding, NodeError, PRContext
@@ -66,7 +68,7 @@ def render_context(ctx: PRContext) -> str:
 def make_specialist(name: str, llm: AgentLLM):
     system = SPECIALISTS[name]
 
-    async def node(state: dict, config: dict | None = None) -> dict:
+    async def node(state: dict, config: RunnableConfig | None = None) -> dict:
         emit = emit_from(config)
         await emit({"type": "node_started", "node": name})
         try:

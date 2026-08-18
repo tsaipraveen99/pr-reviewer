@@ -1,3 +1,5 @@
+from langchain_core.runnables import RunnableConfig
+
 from prcrew.graph.events import emit_from
 from prcrew.graph.specialists import render_context
 from prcrew.llm import AgentLLM
@@ -37,7 +39,7 @@ def _flatten(findings: dict[str, list[Finding]]) -> list[Finding]:
     return [f for group in findings.values() for f in group]
 
 def make_verifier(llm: AgentLLM):
-    async def node(state: dict, config: dict | None = None) -> dict:
+    async def node(state: dict, config: RunnableConfig | None = None) -> dict:
         emit = emit_from(config)
         await emit({"type": "node_started", "node": "verifier"})
         flat = _flatten(state.get("findings", {}))

@@ -1,3 +1,5 @@
+from langchain_core.runnables import RunnableConfig
+
 from prcrew.graph.events import emit_from
 from prcrew.llm import AgentLLM
 from prcrew.models import VerifiedFinding
@@ -18,7 +20,7 @@ def _fallback(confirmed: list[VerifiedFinding]) -> str:
             "| Severity | Location | Finding |\n|---|---|---|\n" + rows)
 
 def make_synthesizer(llm: AgentLLM):
-    async def node(state: dict, config: dict | None = None) -> dict:
+    async def node(state: dict, config: RunnableConfig | None = None) -> dict:
         emit = emit_from(config)
         await emit({"type": "node_started", "node": "synthesizer"})
         confirmed = [v for v in state.get("verified", []) if v.verdict == "confirmed"]
