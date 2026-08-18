@@ -40,3 +40,19 @@ def test_app_settings_from_env(monkeypatch):
 
 def test_run_db_path_removed():
     assert not hasattr(Settings(), "run_db_path")
+
+
+def test_phase4_settings_defaults(monkeypatch):
+    for var in ("INTENT_MODEL", "CLONES_DIR", "MAX_PR_FILES", "MAX_PR_LINES", "DAILY_REPO_CAP"):
+        monkeypatch.delenv(var, raising=False)
+    s = Settings()
+    assert s.intent_model == "claude-sonnet-5"
+    assert s.clones_dir == "./data/clones"
+    assert (s.max_pr_files, s.max_pr_lines, s.daily_repo_cap) == (40, 1500, 20)
+
+
+def test_phase4_settings_env(monkeypatch):
+    monkeypatch.setenv("MAX_PR_FILES", "10")
+    monkeypatch.setenv("DAILY_REPO_CAP", "3")
+    s = Settings()
+    assert s.max_pr_files == 10 and s.daily_repo_cap == 3
