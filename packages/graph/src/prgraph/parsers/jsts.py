@@ -456,9 +456,30 @@ def _collect_calls(
             _collect_calls(child, ancestors, module, calls, local_defs, alias_map)
         elif child.type in _SCOPE_DEF_NODE_TYPES:
             name = _text(child.child_by_field_name("name"))  # type: ignore[arg-type]
-            _collect_calls(
-                child, [*ancestors, name], module, calls, local_defs, alias_map
-            )
+            for grandchild in child.children:
+                if grandchild.type == "decorator":
+                    # A decorator attached directly to an unexported
+                    # class_declaration (`@Component() class Widget {}`) is a
+                    # direct child of the class node itself, but it still runs
+                    # in the ENCLOSING scope, not inside the class it
+                    # decorates -- same rule as python.py's decorated_definition
+                    # handling. (When the class is exported, the decorator is
+                    # instead a sibling of class_declaration under
+                    # export_statement, so the generic "else" branch below
+                    # already leaves it in the enclosing scope; this branch
+                    # only fires for the unexported case.)
+                    _collect_calls(
+                        grandchild, ancestors, module, calls, local_defs, alias_map
+                    )
+                else:
+                    _collect_calls(
+                        grandchild,
+                        [*ancestors, name],
+                        module,
+                        calls,
+                        local_defs,
+                        alias_map,
+                    )
         elif child.type == "lexical_declaration":
             _collect_calls_lexical_declaration(
                 child, ancestors, module, calls, local_defs, alias_map

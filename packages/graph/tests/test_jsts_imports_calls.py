@@ -124,3 +124,51 @@ def test_parse_jsts_require_binds_alias():
     assert ir.imports == [
         Import(target_module="src/x", target_qualified="src/x", alias="m")
     ]
+
+
+def test_parse_jsts_unexported_class_decorator_calls_attribute_to_enclosing_scope():
+    """A decorator on an unexported class is a direct child of class_declaration
+    (unlike the exported case, where it's a sibling under export_statement), but
+    it still runs in the ENCLOSING scope, not inside the class it decorates --
+    same rule as python.py's decorated_definition handling (see
+    test_python_imports_calls.py::test_parse_python_decorator_calls_attribute_to_enclosing_scope).
+
+    `Component(...)` is called by the module itself (caller_qualified == module),
+    not by `Widget`; `Log()` on the method is a class-body sibling of
+    method_definition either way, so it already attributed to the class, not the
+    method -- included here as a same-file contrast.
+    """
+    source = b"""@Component({ x: 1 })
+class Widget {
+  @Log()
+  greet() {
+    return 1;
+  }
+}
+"""
+    ir = parse_jsts("src/thing.ts", source, "typescript")
+
+    assert (
+        Call(
+            caller_qualified="src/thing",
+            callee_name="Component",
+            resolved_qualified=None,
+        )
+        in ir.calls
+    )
+    assert (
+        Call(
+            caller_qualified="src/thing.Widget",
+            callee_name="Log",
+            resolved_qualified=None,
+        )
+        in ir.calls
+    )
+    assert (
+        Call(
+            caller_qualified="src/thing.Widget",
+            callee_name="Component",
+            resolved_qualified=None,
+        )
+        not in ir.calls
+    )
