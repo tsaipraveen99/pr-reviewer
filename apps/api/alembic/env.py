@@ -3,7 +3,7 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
-from prcrew.db import Base
+from prcrew.db import Base, sync_url
 from prcrew.settings import Settings
 
 # this is the Alembic Config object, which provides
@@ -21,7 +21,7 @@ target_metadata = Base.metadata
 
 
 def _sync_url() -> str:
-    return Settings().database_url.replace("+aiosqlite", "").replace("+asyncpg", "+psycopg")
+    return sync_url(Settings().database_url)
 
 
 config.set_main_option("sqlalchemy.url", _sync_url())
