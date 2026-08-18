@@ -55,6 +55,25 @@ Optional env vars (see `apps/api/src/prcrew/settings.py`):
 - `DAILY_RATE_LIMIT` (default `5/day`)
 - `CORS_ORIGINS` (default `*`)
 
+**Running the full stack locally** (adds Postgres + Redis + the Celery worker instead of the SQLite-file default):
+
+```bash
+# from repo root — starts Postgres (5432) and Redis (6379)
+docker compose up -d
+
+# from apps/api — point the app at the compose Postgres/Redis instead of the SQLite default
+export DATABASE_URL=postgresql+psycopg://prcrew:prcrew@localhost:5432/prcrew
+export REDIS_URL=redis://localhost:6379/0
+
+uv run alembic upgrade head
+ANTHROPIC_API_KEY=... GITHUB_TOKEN=... uv run uvicorn 'prcrew.api.app:create_app' --factory --port 8000
+
+# in a second terminal, same apps/api env vars
+uv run celery -A prcrew.worker.celery_app.app worker --loglevel=info
+```
+
+`docker compose down` tears the stack down (add `-v` to also drop the `pgdata` volume).
+
 **Frontend** (from `apps/web`):
 
 ```bash
