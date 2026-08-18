@@ -4,7 +4,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-from prcrew.api.store import RunStore
+from prcrew.api.review_store import ReviewStore
 from prcrew.models import PRContext
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ class Run:
 
 
 class RunManager:
-    def __init__(self, graph, store: RunStore | None = None):
+    def __init__(self, graph, store: ReviewStore | None = None):
         self._graph = graph
         self._runs: dict[str, Run] = {}
         self._store = store
@@ -48,7 +48,7 @@ class RunManager:
                     "result": run.result, "events": run.events}
         if self._store is None:
             return None
-        return await asyncio.to_thread(self._store.load, run_id)
+        return await self._store.load(run_id)
 
     async def start(self, pr_context: PRContext, pr_url: str = "") -> str:
         run = Run(id=uuid.uuid4().hex, pr_url=pr_url)
@@ -107,6 +107,6 @@ class RunManager:
             run.status = "failed"
         finally:
             if self._store is not None:
-                await asyncio.to_thread(
-                    self._store.save, run.id, run.created_at, run.pr_url,
-                    run.status, run.result, run.events)
+                usage = run.result.get("usage") if run.result is not None else None
+                await self._store.save(
+                    run.id, run.pr_url, run.status, run.result, run.events, usage)
