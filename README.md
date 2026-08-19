@@ -60,6 +60,21 @@ row are created only after a successful clone so retries genuinely retry; and
 every failure path completes the Check Run (always `neutral` — the bot
 informs, it never blocks a merge).
 
+## What it looks like
+
+The bot on a PR whose description promised validation and tests, while the diff
+only changed a help string:
+
+<img src="apps/web/public/shots/intent-catch.png" alt="pr-reviewer intent check reporting one divergence between the description and the change" width="720">
+
+Divergences are pinned to the exact changed line:
+
+<img src="apps/web/public/shots/inline-comment.png" alt="inline pr-reviewer comment on the changed diff line" width="720">
+
+And an honest PR gets a clean verdict:
+
+<img src="apps/web/public/shots/clean-pass.png" alt="pr-reviewer reporting the change matches its description" width="720">
+
 ## Why the verifier exists
 
 Four independent LLM calls produce four independent hallucination surfaces. The **verifier** node (`apps/api/src/prcrew/graph/verifier.py`) is a fifth, adversarial LLM call that re-reads the diff against every numbered finding and rejects it if the quoted evidence doesn't actually appear in the diff, misreads the code, or describes something the diff didn't touch. It defaults to rejecting when uncertain, and if the verifier call itself fails, findings pass through unverified rather than silently vanishing. Only confirmed findings reach the synthesizer — this is the difference between "an agent said so" and "an agent said so and a second agent checked."

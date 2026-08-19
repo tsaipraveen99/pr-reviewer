@@ -1,11 +1,10 @@
 import { useEffect } from "react";
 import { AgentBoard } from "./components/AgentBoard";
+import { Hero, HowItWorks, InstallSteps, TopNav, WhatYouGet } from "./components/Landing";
 import { PRForm } from "./components/PRForm";
 import { ReviewPane } from "./components/ReviewPane";
 import { ShowcaseGallery } from "./components/ShowcaseGallery";
 import { useReviewRun } from "./hooks/useReviewRun";
-
-const GITHUB_URL: string = import.meta.env.VITE_GITHUB_URL ?? "https://github.com/tsaipraveen99/pr-reviewer";
 
 function App() {
   const { view, running, start, replay, runId, prUrl, loadFromHash } = useReviewRun();
@@ -18,27 +17,33 @@ function App() {
   }, [loadFromHash]);
 
   return (
-    <div className="app-shell">
-      <div className="mx-auto flex max-w-5xl flex-col gap-10 px-6 py-12">
-        <header className="flex items-start justify-between gap-4">
+    <div className="app-shell" id="top">
+      <TopNav />
+      <div className="mx-auto flex max-w-5xl flex-col gap-14 px-6 pb-16 pt-10">
+        <Hero />
+        <WhatYouGet />
+        <InstallSteps />
+        <HowItWorks />
+
+        <section id="demo" className="flex flex-col gap-6">
           <div>
-            <h1 className="page-title">pr-reviewer</h1>
+            <p className="eyebrow">Live demo</p>
             <p className="mt-1 text-sm text-secondary">
-              A crew of specialist agents reviews your pull request, live, in the browser.
+              Paste a public PR URL and watch the same crew review it, agent by agent, right
+              here. Rate-limited; small PRs only.
             </p>
           </div>
-          <a href={GITHUB_URL} target="_blank" rel="noreferrer" className="header-link mt-1">
-            GitHub
-          </a>
-        </header>
+          <PRForm running={running} onSubmit={start} initialUrl={prUrl} />
+          {/* The verdict sits directly under the form, above the board, so it's
+              visible without scrolling past the specialist cards once a run
+              completes. */}
+          <ReviewPane view={view} runId={runId} />
+          <AgentBoard view={view} />
+        </section>
 
-        <PRForm running={running} onSubmit={start} initialUrl={prUrl} />
-        {/* The verdict sits directly under the form, above the board, so it's
-            visible without scrolling past the specialist cards once a run
-            completes. */}
-        <ReviewPane view={view} runId={runId} />
-        <AgentBoard view={view} />
-        <ShowcaseGallery running={running} onReplay={replay} />
+        <section id="showcases">
+          <ShowcaseGallery running={running} onReplay={replay} />
+        </section>
       </div>
     </div>
   );

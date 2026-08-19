@@ -344,3 +344,124 @@ h1 {
   color: var(--accent);
   text-decoration: underline;
 }
+
+/* Landing: nav, hero, screenshots, steps */
+
+html {
+  scroll-behavior: smooth;
+}
+
+.top-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: 12px 0;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-wordmark {
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.nav-link {
+  font-size: 13px;
+  color: var(--text-2);
+  text-decoration: none;
+}
+.nav-link:hover {
+  color: var(--text);
+}
+@media (max-width: 640px) {
+  .nav-link-wide {
+    display: none;
+  }
+}
+
+.hero-title {
+  font-size: 34px;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--text);
+  max-width: 40rem;
+}
+.hero-title em {
+  font-style: italic;
+}
+@media (max-width: 640px) {
+  .hero-title {
+    font-size: 27px;
+  }
+}
+
+.hero-sub {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-2);
+  max-width: 42rem;
+}
+
+.shot-frame {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--panel-shadow);
+  background: #0d1117; /* the screenshots' own GitHub-dark ground */
+  line-height: 0;
+}
+.shot-frame img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.shot-caption {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.shot-figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.fact-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  font-size: 12px;
+  font-weight: 590;
+  color: var(--text);
+}
+
+.step-card {
+  padding: 16px;
+}
+.step-number {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 650;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.step-result {
+  color: var(--text-2);
+  font-weight: 590;
+}
