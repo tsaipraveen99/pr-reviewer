@@ -7,8 +7,61 @@ services:
       POSTGRES_DB: prcrew
     ports: ["5432:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prcrew"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
   redis:
     image: redis:7-alpine
     ports: ["6379:6379"]
+
+  # Full-stack profile: `docker compose --profile app up` also builds and runs
+  # the api + worker from source. Without the profile you get just the data
+  # stores (the lighter loop for local `uv run` development).
+  api:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports: ["8000:8000"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://prcrew:prcrew@postgres:5432/prcrew
+      REDIS_URL: redis://redis:6379/0
+      # Web-demo essentials; GitHub App vars are optional until you register one.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      ALLOWED_INSTALLATION_IDS: ${ALLOWED_INSTALLATION_IDS:-}
+    command: ["sh", "-c", "uv run --no-sync alembic upgrade head && ./docker-entrypoint.sh"]
+
+  worker:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      SERVICE_ROLE: worker
+      DATABASE_URL: postgresql+psycopg://prcrew:prcrew@postgres:5432/prcrew
+      REDIS_URL: redis://redis:6379/0
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
+      ALLOWED_INSTALLATION_IDS: ${ALLOWED_INSTALLATION_IDS:-}
+      CLONES_DIR: /tmp/prcrew-clones
+
 volumes:
   pgdata:

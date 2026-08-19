@@ -60,6 +60,14 @@ row are created only after a successful clone so retries genuinely retry; and
 every failure path completes the Check Run (always `neutral` — the bot
 informs, it never blocks a merge).
 
+## Run it yourself
+
+pr-reviewer is MIT-licensed and fully self-hostable: register your own
+GitHub App, deploy the api + worker (one Docker image), and every review
+runs on **your** Anthropic key and infrastructure. The complete walkthrough
+— app registration checklist, env var table, docker compose, deploy notes —
+is in [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md).
+
 ## What it looks like
 
 The bot on a PR whose description promised validation and tests, while the diff

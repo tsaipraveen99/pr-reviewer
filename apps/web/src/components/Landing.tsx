@@ -64,7 +64,7 @@ export function Hero() {
         <a href="#demo" onClick={goTo("demo")} className="mac-button-secondary inline-block">
           Try the live demo
         </a>
-        <span className="text-xs text-secondary">Public preview: reviews activate per installation while bring-your-own-key rolls out.</span>
+        <span className="text-xs text-secondary">Open source (MIT): self-host with your own GitHub App and Anthropic key.</span>
       </div>
     </section>
   );
@@ -195,7 +195,16 @@ export function HowItWorks() {
         <a href={`${GITHUB_URL}#architecture`} target="_blank" rel="noreferrer" className="text-accent">
           project README
         </a>
-        .
+        , and the{" "}
+        <a
+          href={`${GITHUB_URL}/blob/main/docs/SELF_HOSTING.md`}
+          target="_blank"
+          rel="noreferrer"
+          className="text-accent"
+        >
+          self-hosting guide
+        </a>{" "}
+        gets you running on your own key and infrastructure.
       </p>
     </section>
   );
