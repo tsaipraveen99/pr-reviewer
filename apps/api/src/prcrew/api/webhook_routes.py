@@ -20,6 +20,8 @@ def make_webhook_router(settings: Settings, session_factory,
 
     @router.post("/webhooks/github", status_code=202)
     async def github_webhook(request: Request):
+        if int(request.headers.get("content-length") or 0) > 1_000_000:
+            return Response(status_code=413)
         body = await request.body()
         signature = request.headers.get("x-hub-signature-256")
         if not verify_signature(settings.github_webhook_secret, body, signature):

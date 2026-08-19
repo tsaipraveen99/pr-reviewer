@@ -577,6 +577,29 @@ def test_deps_reuses_engine(monkeypatch, tmp_path):
         tasks_mod._ENGINES.clear()
 
 
+def test_fetch_failure_completes_visible_check(worker_env, tmp_path, monkeypatch):
+    factory, checks, _settings, _mp = worker_env
+    origin = make_origin(tmp_path)
+    kwargs = kwargs_for(origin)
+
+    import prcrew.github.pr_data as pr_data_mod
+    from prcrew.github.client import GitHubError
+
+    def boom(client, installation_id, owner, repo, number):
+        raise GitHubError(502, "bad gateway")
+
+    monkeypatch.setattr(pr_data_mod, "fetch_pr", boom)
+
+    outcome = handle_pr_event.delay(**kwargs).get()
+
+    assert outcome == "failed"
+    assert checks.created            # a check run WAS created
+    assert checks.completed[0][1] == "neutral"
+    assert "could not fetch" in checks.completed[0][3]
+    with factory() as s:             # and no review row exists
+        assert s.execute(select(Review)).scalars().all() == []
+
+
 def test_run_crew_shapes_result_and_stamps_events(monkeypatch):
     # Fakes the graph build itself (build_graph), not the LLM: the point of
     # this test is _run_crew's own plumbing -- aggregating usage, shaping

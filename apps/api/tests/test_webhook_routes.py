@@ -273,3 +273,12 @@ def test_push_disallowed_installation_ignored(harness):
     with TestClient(app) as client:
         post(client, "push", p, delivery="p-4")
     assert enqueued == []
+
+
+def test_oversized_body_rejected_before_verification(harness):
+    app, _, enqueued = harness
+    with TestClient(app) as client:
+        r = client.post("/webhooks/github", content=b"{}",
+                        headers={"Content-Length": "2000000"})
+    assert r.status_code == 413
+    assert enqueued == []

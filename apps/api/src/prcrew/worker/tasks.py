@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from celery.exceptions import Retry
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 
 from prcrew.worker.celery_app import app
 
@@ -153,7 +153,17 @@ def handle_pr_event(self, installation_id: int, repo_id: int, repo_full_name: st
         session.commit()
 
     owner, repo = repo_full_name.split("/", 1)
-    ctx, _meta = fetch_pr(deps.app_client, installation_id, owner, repo, pr_number)
+    from prcrew.github.client import GitHubError
+    try:
+        ctx, _meta = fetch_pr(deps.app_client, installation_id, owner, repo, pr_number)
+    except GitHubError:
+        logger.exception("fetch_pr failed for %s#%s", repo_full_name, pr_number)
+        cr = deps.checks.create(installation_id, owner, repo, head_sha)
+        _complete_quietly(deps.checks, installation_id, owner, repo, cr, "neutral",
+                          "pr-reviewer could not fetch this PR",
+                          "pr-reviewer could not fetch this pull request from "
+                          "GitHub; it will retry on the next push.")
+        return "failed"
 
     reason = _ineligible_reason(deps, repo_id, ctx, settings)
     if reason is not None:
@@ -308,10 +318,10 @@ def _ineligible_reason(deps, repo_id: int, ctx, settings) -> str | None:
     since = datetime.now(UTC).replace(tzinfo=None) - timedelta(days=1)
     with deps.session_factory() as session:
         count = session.execute(
-            select(Review).where(Review.repo_id == repo_id,
-                                 Review.source == "github",
-                                 Review.created_at >= since)).scalars().all()
-    if len(count) >= settings.daily_repo_cap:
+            select(func.count()).select_from(Review).where(
+                Review.repo_id == repo_id, Review.source == "github",
+                Review.created_at >= since)).scalar_one()
+    if count >= settings.daily_repo_cap:
         return f"Daily review cap reached for this repository ({settings.daily_repo_cap}/day)."
     return None
 
