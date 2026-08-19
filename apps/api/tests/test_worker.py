@@ -79,8 +79,8 @@ def _route_clone_to_local_origin(monkeypatch, origin: Path):
     import prcrew.worker.clones as clones_mod
     real_ensure_clone = clones_mod.ensure_clone
 
-    def wrapper(clone_url, dest, pr_number, sha, token=None):
-        return real_ensure_clone(f"file://{origin}", dest, pr_number, sha, token=token)
+    def wrapper(clone_url, dest, ref, sha, token=None):
+        return real_ensure_clone(f"file://{origin}", dest, ref, sha, token=token)
 
     monkeypatch.setattr(clones_mod, "ensure_clone", wrapper)
 
@@ -92,8 +92,8 @@ def _route_clone_to_missing_origin(monkeypatch, tmp_path: Path):
     real_ensure_clone = clones_mod.ensure_clone
     missing = tmp_path / "no-such-origin"
 
-    def wrapper(clone_url, dest, pr_number, sha, token=None):
-        return real_ensure_clone(f"file://{missing}", dest, pr_number, sha, token=token)
+    def wrapper(clone_url, dest, ref, sha, token=None):
+        return real_ensure_clone(f"file://{missing}", dest, ref, sha, token=token)
 
     monkeypatch.setattr(clones_mod, "ensure_clone", wrapper)
 

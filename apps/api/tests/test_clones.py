@@ -31,14 +31,14 @@ def test_fresh_clone_checks_out_sha(tmp_path):
     origin = make_origin(tmp_path)
     dest = tmp_path / "clone"
     sha = head_sha(origin)
-    ensure_clone(f"file://{origin}", dest, pr_number=1, head_sha=sha)
+    ensure_clone(f"file://{origin}", dest, ref="refs/pull/1/head", sha=sha)
     assert (dest / "app.py").read_text().startswith("def f")
 
 
 def test_incremental_fetch_new_sha(tmp_path):
     origin = make_origin(tmp_path)
     dest = tmp_path / "clone"
-    ensure_clone(f"file://{origin}", dest, 1, head_sha(origin))
+    ensure_clone(f"file://{origin}", dest, "refs/pull/1/head", head_sha(origin))
     (origin / "app.py").write_text("def f():\n    return 2\n")
     subprocess.run(["git", "commit", "-am", "change"], cwd=origin, check=True,
                    capture_output=True, env={"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
@@ -46,8 +46,15 @@ def test_incremental_fetch_new_sha(tmp_path):
                                              "PATH": "/usr/bin:/bin:/usr/local/bin"})
     subprocess.run(["git", "update-ref", "refs/pull/1/head", "HEAD"], cwd=origin,
                    check=True, capture_output=True)
-    ensure_clone(f"file://{origin}", dest, 1, head_sha(origin))
+    ensure_clone(f"file://{origin}", dest, "refs/pull/1/head", head_sha(origin))
     assert "return 2" in (dest / "app.py").read_text()
+
+
+def test_fetch_branch_ref(tmp_path):
+    origin = make_origin(tmp_path)
+    dest = tmp_path / "clone"
+    ensure_clone(f"file://{origin}", dest, "refs/heads/main", head_sha(origin))
+    assert (dest / "app.py").is_file()
 
 
 def test_clone_error_scrubs_token(tmp_path):
@@ -57,7 +64,7 @@ def test_clone_error_scrubs_token(tmp_path):
     secret = "SECRET" + "TOKEN"
     url = f"https://x-access-token:{secret}@127.0.0.1:1/none.git"
     with pytest.raises(CloneError) as exc:
-        ensure_clone(url, tmp_path / "c", 1, "a" * 40, token=secret)
+        ensure_clone(url, tmp_path / "c", "refs/pull/1/head", "a" * 40, token=secret)
     assert secret not in str(exc.value)
     # The full formatted traceback is what logger.exception prints — the
     # suppressed chain must not resurrect the token via CalledProcessError.cmd.

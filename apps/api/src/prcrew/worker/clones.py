@@ -24,17 +24,16 @@ def _git(args: list[str], cwd: Path, token: str | None) -> None:
         raise CloneError(f"git {args[0]} failed: {detail}") from None
 
 
-def ensure_clone(clone_url: str, dest: Path, pr_number: int, head_sha: str,
+def ensure_clone(clone_url: str, dest: Path, ref: str, sha: str,
                  token: str | None = None) -> None:
-    """Make `dest` a checkout of `head_sha`, creating or reusing the clone.
+    """Make `dest` a checkout of `sha`, creating or reusing the clone.
 
-    Fetches GitHub's refs/pull/{n}/head, which exists for same-repo and
-    fork PRs alike. The remote URL (which may embed a token) is passed per
-    command, never written to .git/config.
+    `ref` is any fetchable git ref: refs/pull/{n}/head (exists for same-repo
+    and fork PRs alike) or refs/heads/{branch}. The remote URL (which may
+    embed a token) is passed per command, never written to .git/config.
     """
     if not (dest / ".git").is_dir():
         dest.mkdir(parents=True, exist_ok=True)
         _git(["init", "-q"], dest, token)
-    _git(["fetch", "--depth", "50", clone_url,
-          f"refs/pull/{pr_number}/head"], dest, token)
-    _git(["-c", "advice.detachedHead=false", "checkout", "-q", head_sha], dest, token)
+    _git(["fetch", "--depth", "50", clone_url, ref], dest, token)
+    _git(["-c", "advice.detachedHead=false", "checkout", "-q", sha], dest, token)

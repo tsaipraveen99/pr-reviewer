@@ -176,11 +176,12 @@ def handle_pr_event(self, installation_id: int, repo_id: int, repo_full_name: st
     check_run_id = None
     review_id = None
     try:
-        clone_root = Path(settings.clones_dir) / str(repo_id)
+        clone_root = Path(settings.clones_dir) / f"{repo_id}-pr{pr_number}"
         token = deps.tokens.token(installation_id)
         clone_url = f"https://x-access-token:{token}@github.com/{repo_full_name}.git"
         try:
-            ensure_clone(clone_url, clone_root, pr_number, head_sha, token=token)
+            ensure_clone(clone_url, clone_root, f"refs/pull/{pr_number}/head",
+                         head_sha, token=token)
         except CloneError as e:
             raise self.retry(exc=e, countdown=30) from e
 
