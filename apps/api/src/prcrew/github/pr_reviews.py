@@ -1,5 +1,7 @@
 """Compose and post the GitHub Review for a bot run."""
 
+import re
+
 from prcrew.diffs import ChangedFile, line_is_changed
 from prcrew.github.app_client import AppClient
 from prcrew.github.client import GitHubError
@@ -29,9 +31,12 @@ def build_inline_comments(confirmed: list[VerifiedFinding],
     return comments, unmapped
 
 
+_DETAILS_CLOSE = re.compile(r"</details", re.IGNORECASE)
+
+
 def _finding_line(f: VerifiedFinding) -> str:
     loc = f"{f.file}:{f.line}" if f.line is not None else f.file
-    return f"- **{f.severity}** ({f.agent}) `{loc}` — {_safe(f.claim, 400)}"
+    return f"- **{f.severity}** ({f.agent}) `{_safe(loc, 200)}` — {_safe(f.claim, 400)}"
 
 
 def compose_body(intent_confirmed: list[VerifiedFinding],
@@ -46,6 +51,10 @@ def compose_body(intent_confirmed: list[VerifiedFinding],
              + "\n".join(_finding_line(f) for f in unmapped)) if unmapped else ""
     total = usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
     footer = f"\n\n---\ncost: ${usage.get('cost_usd', 0):.3f} · {total:,} tokens"
+    # The synthesizer's markdown must keep its formatting, so it is NOT run
+    # through _safe -- but a planted closing tag (a PR can steer what the
+    # model writes) would pop our collapse block. Neutralize just that.
+    review_md = _DETAILS_CLOSE.sub("&lt;/details", review_md)
     return (f"{verdict}{extra}\n\n<details><summary>Full crew review</summary>\n\n"
             f"{review_md}\n\n</details>{footer}")
 

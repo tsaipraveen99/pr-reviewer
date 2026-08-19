@@ -103,3 +103,13 @@ def test_post_review_caps_body_length():
     import json
     sent = json.loads(route.calls[0].request.content)
     assert len(sent["body"]) == 60_000
+
+
+def test_review_md_closing_details_is_neutralized():
+    md = "verdict\n\n</DETAILS> escaped? Also </details> and legit **markdown**."
+    body = compose_body([], [], md, {"input_tokens": 1, "output_tokens": 1,
+                                     "cost_usd": 0.0})
+    # exactly one closing tag survives: ours, at the end of the collapse block
+    assert body.count("</details>") + body.count("</DETAILS>") == 1
+    assert "&lt;/DETAILS" in body and "&lt;/details" in body
+    assert "**markdown**" in body  # legit formatting untouched
