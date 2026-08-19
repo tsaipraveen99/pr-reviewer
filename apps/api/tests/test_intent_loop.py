@@ -41,7 +41,7 @@ async def test_intent_agent_returns_findings_and_emits():
 async def test_intent_agent_calls_tool_loop_with_tools_and_executors():
     llm = FakeLLM([{"findings": []}])
     toolbelt = FakeToolBelt()
-    node = make_intent_agent(llm, toolbelt)
+    node = make_intent_agent(llm, toolbelt, token_budget=123)
     _events, config = collector()
 
     await node({"pr_context": CTX}, config)
@@ -52,6 +52,8 @@ async def test_intent_agent_calls_tool_loop_with_tools_and_executors():
     assert call["final_tool"] == FINDINGS_TOOL
     assert call["max_tool_calls"] == 10
     assert call["executors"] == toolbelt.executors()
+    assert call["max_tokens"] == 8192
+    assert call["token_budget"] == 123
 
 
 async def test_intent_agent_user_prompt_includes_slice_text():

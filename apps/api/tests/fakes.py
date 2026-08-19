@@ -18,10 +18,13 @@ class FakeLLM:
         return self._next(system, user)
 
     async def tool_loop(self, system: str, user: str, tools: list, executors: dict,
-                        final_tool: dict, max_tool_calls: int = 10) -> tuple[dict, dict]:
+                        final_tool: dict, max_tool_calls: int = 10,
+                        max_tokens: int = 4096, token_budget: int | None = None,
+                        ) -> tuple[dict, dict]:
         self.tool_loop_calls.append({
             "system": system, "user": user, "tools": tools, "executors": executors,
             "final_tool": final_tool, "max_tool_calls": max_tool_calls,
+            "max_tokens": max_tokens, "token_budget": token_budget,
         })
         return self._next(system, user)
 

@@ -72,7 +72,8 @@ def _run_crew(ctx, slice_text: str, toolbelt, settings) -> tuple[dict, list[dict
 
     graph = build_graph(
         AgentLLM(settings.specialist_model), AgentLLM(settings.synth_model),
-        intent_node=make_intent_agent(AgentLLM(settings.intent_model), toolbelt))
+        intent_node=make_intent_agent(AgentLLM(settings.intent_model), toolbelt,
+                                      token_budget=settings.intent_token_budget))
     events: list[dict] = []
     seq = 0
 

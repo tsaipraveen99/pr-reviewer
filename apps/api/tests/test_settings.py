@@ -56,3 +56,10 @@ def test_phase4_settings_env(monkeypatch):
     monkeypatch.setenv("DAILY_REPO_CAP", "3")
     s = Settings()
     assert s.max_pr_files == 10 and s.daily_repo_cap == 3
+
+
+def test_intent_token_budget(monkeypatch):
+    monkeypatch.delenv("INTENT_TOKEN_BUDGET", raising=False)
+    assert Settings().intent_token_budget == 200000
+    monkeypatch.setenv("INTENT_TOKEN_BUDGET", "50000")
+    assert Settings().intent_token_budget == 50000

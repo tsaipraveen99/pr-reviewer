@@ -236,3 +236,41 @@ async def test_tool_loop_gives_up_after_repeated_noncompliant_forced_responses()
 
     # 1 unforced + 3 forced attempts, then give up — never a 5th paid call.
     assert client.messages.create.call_count == 4
+
+
+async def test_tool_loop_first_message_carries_cache_breakpoint():
+    client = MagicMock()
+    resp = _resp([_tool_use_block("report_findings", "t1", {"findings": []})])
+    client.messages.create = AsyncMock(side_effect=[resp])
+    llm = AgentLLM(model="m", client=client)
+    await llm.tool_loop("sys", "big context", [READ_TOOL], {}, FINAL_TOOL)
+    first_msgs = client.messages.create.call_args_list[0].kwargs["messages"]
+    block = first_msgs[0]["content"][0]
+    assert block["type"] == "text" and block["text"] == "big context"
+    assert block["cache_control"] == {"type": "ephemeral"}
+
+
+async def test_tool_loop_token_budget_forces_final():
+    client = MagicMock()
+    # resp1 burns 150k input tokens and asks for a tool; budget 100k -> the
+    # NEXT request must force the final tool even though only 1 call was used
+    resp1 = _resp([_tool_use_block("read_file", "t1", {"path": "a.py"})],
+                  input_tokens=150_000, output_tokens=10)
+    resp2 = _resp([_tool_use_block("report_findings", "t2", {"findings": []})])
+    client.messages.create = AsyncMock(side_effect=[resp1, resp2])
+    llm = AgentLLM(model="m", client=client)
+    payload, _ = await llm.tool_loop("sys", "user", [READ_TOOL],
+                                     {"read_file": lambda a: "ok"}, FINAL_TOOL,
+                                     token_budget=100_000)
+    assert payload == {"findings": []}
+    second = client.messages.create.call_args_list[1].kwargs
+    assert second["tool_choice"] == {"type": "tool", "name": "report_findings"}
+
+
+async def test_tool_loop_passes_max_tokens():
+    client = MagicMock()
+    resp = _resp([_tool_use_block("report_findings", "t1", {"findings": []})])
+    client.messages.create = AsyncMock(side_effect=[resp])
+    llm = AgentLLM(model="m", client=client)
+    await llm.tool_loop("sys", "u", [READ_TOOL], {}, FINAL_TOOL, max_tokens=8192)
+    assert client.messages.create.call_args_list[0].kwargs["max_tokens"] == 8192

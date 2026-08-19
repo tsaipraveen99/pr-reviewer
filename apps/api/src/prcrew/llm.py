@@ -40,9 +40,15 @@ class AgentLLM:
 
     async def tool_loop(self, system: str, user: str, tools: list[dict],
                         executors: dict, final_tool: dict,
-                        max_tool_calls: int = 10) -> tuple[dict, dict]:
+                        max_tool_calls: int = 10, max_tokens: int = 4096,
+                        token_budget: int | None = None) -> tuple[dict, dict]:
         """Bounded manual tool-use loop ending in a forced structured report."""
-        messages: list[dict] = [{"role": "user", "content": user}]
+        # The first message is a content-block list (rather than a plain
+        # string) so it can carry a cache_control breakpoint: system + tools
+        # + this message form the loop's stable prefix, resent verbatim on
+        # every iteration, so caching it is where the savings are.
+        messages: list[dict] = [{"role": "user", "content": [
+            {"type": "text", "text": user, "cache_control": {"type": "ephemeral"}}]}]
         total = {"input_tokens": 0, "output_tokens": 0}
         calls_used = 0
         force_final = False
@@ -59,10 +65,13 @@ class AgentLLM:
                 forced_attempts += 1
                 kwargs = {"tools": [final_tool],
                           "tool_choice": {"type": "tool", "name": final_tool["name"]}}
-            resp = await self._call(system=system, messages=messages, **kwargs)
+            resp = await self._call(system=system, messages=messages,
+                                    max_tokens=max_tokens, **kwargs)
             u = _usage(resp)
             total["input_tokens"] += u["input_tokens"]
             total["output_tokens"] += u["output_tokens"]
+            if token_budget is not None and total["input_tokens"] >= token_budget:
+                force_final = True
             tool_uses = [b for b in resp.content if b.type == "tool_use"]
             final = next((b for b in tool_uses if b.name == final_tool["name"]), None)
             if final is not None:
@@ -84,14 +93,14 @@ class AgentLLM:
             messages.append({"role": "user", "content": results})
 
     async def _call(self, *, system: str, user: str | None = None,
-                    messages: list | None = None, **kwargs):
+                    messages: list | None = None, max_tokens: int = 4096, **kwargs):
         messages = messages or [{"role": "user", "content": user}]
         max_attempts = 3
         backoff_seconds = [1.0, 2.0]
         for attempt in range(max_attempts):
             try:
                 return await self._client.messages.create(
-                    model=self.model, max_tokens=4096, system=system,
+                    model=self.model, max_tokens=max_tokens, system=system,
                     messages=messages, **kwargs)
             except Exception as e:
                 last_attempt = attempt == max_attempts - 1

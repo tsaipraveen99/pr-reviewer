@@ -24,7 +24,7 @@ _SYSTEM = SPECIALISTS["intent"] + (
     "diff so comments can be placed inline.")
 
 
-def make_intent_agent(llm: AgentLLM, toolbelt: ToolBelt):
+def make_intent_agent(llm: AgentLLM, toolbelt: ToolBelt, token_budget: int | None = None):
     async def node(state: dict, config: RunnableConfig | None = None) -> dict:
         emit = emit_from(config)
         await emit({"type": "node_started", "node": "intent"})
@@ -33,7 +33,8 @@ def make_intent_agent(llm: AgentLLM, toolbelt: ToolBelt):
                 _SYSTEM,
                 render_context(state["pr_context"], state.get("graph_slice")),
                 [GRAPH_NEIGHBORS_TOOL, READ_FILE_TOOL, GREP_TOOL],
-                toolbelt.executors(), FINDINGS_TOOL, max_tool_calls=10)
+                toolbelt.executors(), FINDINGS_TOOL, max_tool_calls=10,
+                max_tokens=8192, token_budget=token_budget)
             findings = [Finding(id=f"intent-{i}", agent="intent", **f)
                         for i, f in enumerate(out.get("findings", []))]
             for f in findings:
