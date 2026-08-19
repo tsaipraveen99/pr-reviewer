@@ -49,7 +49,8 @@ class AgentLLM:
         # every iteration, so caching it is where the savings are.
         messages: list[dict] = [{"role": "user", "content": [
             {"type": "text", "text": user, "cache_control": {"type": "ephemeral"}}]}]
-        total = {"input_tokens": 0, "output_tokens": 0}
+        total = {"input_tokens": 0, "output_tokens": 0,
+                "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0}
         calls_used = 0
         force_final = False
         forced_attempts = 0
@@ -63,13 +64,23 @@ class AgentLLM:
                     raise RuntimeError(
                         "model did not produce the final tool report after 3 forced attempts")
                 forced_attempts += 1
-                kwargs = {"tools": [final_tool],
+                # Keep the FULL tools list here (not just [final_tool]): tools
+                # + system + the first message form the cacheable prefix, and
+                # this is the loop's last request whenever the cap is hit --
+                # shrinking the tools list here would miss cache on exactly
+                # that request. tool_choice alone is enough to force the call.
+                kwargs = {"tools": [*tools, final_tool],
                           "tool_choice": {"type": "tool", "name": final_tool["name"]}}
             resp = await self._call(system=system, messages=messages,
                                     max_tokens=max_tokens, **kwargs)
             u = _usage(resp)
             total["input_tokens"] += u["input_tokens"]
             total["output_tokens"] += u["output_tokens"]
+            total["cache_creation_input_tokens"] += u["cache_creation_input_tokens"]
+            total["cache_read_input_tokens"] += u["cache_read_input_tokens"]
+            # The budget bounds plain (uncached) input growth only -- cache
+            # reads/writes are excluded because a hot cache is exactly why
+            # repeated context stays cheap and shouldn't count against it.
             if token_budget is not None and total["input_tokens"] >= token_budget:
                 force_final = True
             tool_uses = [b for b in resp.content if b.type == "tool_use"]
@@ -111,4 +122,13 @@ class AgentLLM:
 
 
 def _usage(resp) -> dict:
-    return {"input_tokens": resp.usage.input_tokens, "output_tokens": resp.usage.output_tokens}
+    return {
+        "input_tokens": resp.usage.input_tokens,
+        "output_tokens": resp.usage.output_tokens,
+        # getattr-with-default keeps fakes without these attrs working; `or 0`
+        # covers the SDK's real default of None when caching wasn't used.
+        "cache_creation_input_tokens": getattr(
+            resp.usage, "cache_creation_input_tokens", 0) or 0,
+        "cache_read_input_tokens": getattr(
+            resp.usage, "cache_read_input_tokens", 0) or 0,
+    }

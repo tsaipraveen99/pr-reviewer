@@ -8,10 +8,14 @@ from prcrew import llm as llm_module
 from prcrew.llm import AgentLLM, _is_retryable
 
 
-def _resp_with_tool_use(payload, input_tokens=10, output_tokens=20):
+def _resp_with_tool_use(payload, input_tokens=10, output_tokens=20,
+                        cache_creation_input_tokens=0, cache_read_input_tokens=0):
     block = MagicMock(); block.type = "tool_use"; block.input = payload
     resp = MagicMock(); resp.content = [block]
-    resp.usage = MagicMock(input_tokens=input_tokens, output_tokens=output_tokens)
+    resp.usage = MagicMock(
+        input_tokens=input_tokens, output_tokens=output_tokens,
+        cache_creation_input_tokens=cache_creation_input_tokens,
+        cache_read_input_tokens=cache_read_input_tokens)
     return resp
 
 def _tool_use_block(name, id, input):
@@ -28,10 +32,14 @@ def _text_block(text):
     block.text = text
     return block
 
-def _resp(content, input_tokens=10, output_tokens=20):
+def _resp(content, input_tokens=10, output_tokens=20,
+         cache_creation_input_tokens=0, cache_read_input_tokens=0):
     resp = MagicMock()
     resp.content = content
-    resp.usage = MagicMock(input_tokens=input_tokens, output_tokens=output_tokens)
+    resp.usage = MagicMock(
+        input_tokens=input_tokens, output_tokens=output_tokens,
+        cache_creation_input_tokens=cache_creation_input_tokens,
+        cache_read_input_tokens=cache_read_input_tokens)
     return resp
 
 def _status_error(code: int) -> anthropic.APIStatusError:
@@ -72,7 +80,8 @@ async def test_structured_returns_usage_from_response():
         return_value=_resp_with_tool_use({"ok": 1}, input_tokens=42, output_tokens=7))
     llm = AgentLLM(model="m", client=client)
     _out, usage = await llm.structured("s", "u", {"name": "t", "input_schema": {}})
-    assert usage == {"input_tokens": 42, "output_tokens": 7}
+    assert usage == {"input_tokens": 42, "output_tokens": 7,
+                     "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0}
 
 
 # --- _is_retryable -----------------------------------------------------
@@ -159,7 +168,8 @@ async def test_tool_loop_executes_then_returns_final():
     payload, usage = await llm.tool_loop("sys", "user", [READ_TOOL], executors, FINAL_TOOL)
 
     assert payload == {"findings": []}
-    assert usage == {"input_tokens": 15, "output_tokens": 27}
+    assert usage == {"input_tokens": 15, "output_tokens": 27,
+                     "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0}
     second_kwargs = client.messages.create.call_args_list[1].kwargs
     tool_result_msg = second_kwargs["messages"][-1]
     assert tool_result_msg["role"] == "user"
@@ -206,7 +216,10 @@ async def test_tool_loop_forces_final_after_cap():
     assert client.messages.create.call_count == 3
     second_kwargs = client.messages.create.call_args_list[1].kwargs
     assert second_kwargs["tool_choice"] == {"type": "tool", "name": "report_findings"}
-    assert second_kwargs["tools"] == [FINAL_TOOL]
+    # Forcing keeps the full tools list (not just [FINAL_TOOL]) so the
+    # cacheable prefix (tools+system+first message) is unchanged on the
+    # loop's last request -- the expected path whenever the cap is hit.
+    assert second_kwargs["tools"] == [READ_TOOL, FINAL_TOOL]
 
 
 async def test_tool_loop_text_only_response_forces_final():
@@ -222,7 +235,7 @@ async def test_tool_loop_text_only_response_forces_final():
     assert payload == {"findings": []}
     second_kwargs = client.messages.create.call_args_list[1].kwargs
     assert second_kwargs["tool_choice"] == {"type": "tool", "name": "report_findings"}
-    assert second_kwargs["tools"] == [FINAL_TOOL]
+    assert second_kwargs["tools"] == [READ_TOOL, FINAL_TOOL]
 
 
 async def test_tool_loop_gives_up_after_repeated_noncompliant_forced_responses():
@@ -274,3 +287,22 @@ async def test_tool_loop_passes_max_tokens():
     llm = AgentLLM(model="m", client=client)
     await llm.tool_loop("sys", "u", [READ_TOOL], {}, FINAL_TOOL, max_tokens=8192)
     assert client.messages.create.call_args_list[0].kwargs["max_tokens"] == 8192
+
+
+async def test_tool_loop_usage_accumulates_cache_tokens():
+    client = MagicMock()
+    resp1 = _resp([_tool_use_block("read_file", "t1", {"path": "a.py"})],
+                  input_tokens=10, output_tokens=20,
+                  cache_creation_input_tokens=100, cache_read_input_tokens=0)
+    resp2 = _resp([_tool_use_block("report_findings", "t2", {"findings": []})],
+                  input_tokens=5, output_tokens=7,
+                  cache_creation_input_tokens=0, cache_read_input_tokens=200)
+    client.messages.create = AsyncMock(side_effect=[resp1, resp2])
+    llm = AgentLLM(model="m", client=client)
+    executors = {"read_file": lambda args: "ok"}
+
+    payload, usage = await llm.tool_loop("sys", "user", [READ_TOOL], executors, FINAL_TOOL)
+
+    assert payload == {"findings": []}
+    assert usage == {"input_tokens": 15, "output_tokens": 27,
+                     "cache_creation_input_tokens": 100, "cache_read_input_tokens": 200}

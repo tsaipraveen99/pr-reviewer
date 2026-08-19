@@ -39,9 +39,16 @@ def make_intent_agent(llm: AgentLLM, toolbelt: ToolBelt, token_budget: int | Non
                         for i, f in enumerate(out.get("findings", []))]
             for f in findings:
                 await emit({"type": "finding", "node": "intent", "finding": f.model_dump()})
-            cost = cost_usd(llm.model, usage["input_tokens"], usage["output_tokens"])
+            cost = cost_usd(llm.model, usage["input_tokens"], usage["output_tokens"],
+                            usage.get("cache_creation_input_tokens", 0),
+                            usage.get("cache_read_input_tokens", 0))
+            # Event contract and NodeUsage stay input/output-only: the cache
+            # counts feed cost_usd above but don't otherwise change the wire
+            # shape (NodeUsage has no cache fields).
             await emit({"type": "node_finished", "node": "intent",
-                        "usage": usage, "cost_usd": cost})
+                        "usage": {"input_tokens": usage["input_tokens"],
+                                 "output_tokens": usage["output_tokens"]},
+                        "cost_usd": cost})
             node_usage = NodeUsage(node="intent", input_tokens=usage["input_tokens"],
                                    output_tokens=usage["output_tokens"], cost_usd=cost)
             return {"findings": {"intent": findings}, "usage": [node_usage]}
