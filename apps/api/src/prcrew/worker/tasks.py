@@ -209,6 +209,18 @@ def handle_pr_event(self, installation_id: int, repo_id: int, repo_full_name: st
                                pr_number=pr_number, head_sha=head_sha,
                                pr_url=f"https://github.com/{repo_full_name}/pull/{pr_number}",
                                status="running", check_run_id=check_run_id))
+            # Second supersede sweep: the enqueue-time sweep can miss an
+            # in-flight review whose row didn't exist yet (rows are created
+            # only after a successful clone). By the time THIS review's row
+            # is created, any older-sha review that got that far has a row --
+            # mark it superseded so it aborts at its next checkpoint instead
+            # of posting a stale review.
+            session.execute(
+                update(Review).where(Review.repo_id == repo_id,
+                                     Review.pr_number == pr_number,
+                                     Review.head_sha != head_sha,
+                                     Review.status == "running")
+                .values(status="superseded"))
             session.commit()
 
         ensure_index(deps.session_factory, repo_id, clone_root, head_sha)

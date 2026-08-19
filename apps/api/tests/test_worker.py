@@ -663,3 +663,39 @@ def test_fetch_failure_when_github_fully_down_still_returns_failed(worker_env, t
     monkeypatch.setattr(tasks_mod, "_deps",
                         lambda: Deps(factory, DownChecks(), None, FakeTokens(), settings))
     assert handle_pr_event.delay(**kwargs).get() == "failed"
+
+
+def test_row_creation_supersedes_older_inflight_row(worker_env, tmp_path, monkeypatch):
+    """A newer-sha review whose enqueue-time sweep ran before the older row
+    existed must still supersede it when its own row is created."""
+    factory, _checks, _settings, _ = worker_env
+    origin = make_origin(tmp_path)
+    old_sha = "f" * 40
+
+    import prcrew.github.pr_data as pr_data_mod
+
+    fake = fake_fetch_pr(make_ctx())
+
+    def fetch_then_plant_old_row(*a, **kw):
+        # Simulate the race: the older-sha review reaches row creation AFTER
+        # this (newer) task's enqueue-time sweep already ran -- by planting
+        # the older "running" row during the newer task's fetch step.
+        with factory() as s:
+            s.add(Review(id="older-run", source="github", repo_id=999,
+                         pr_number=1, head_sha=old_sha,
+                         pr_url="https://github.com/x/y/pull/1",
+                         status="running", check_run_id=111))
+            s.commit()
+        return fake(*a, **kw)
+
+    monkeypatch.setattr(pr_data_mod, "fetch_pr", fetch_then_plant_old_row)
+    _route_clone_to_local_origin(monkeypatch, origin)
+    result, events = two_findings_result()
+    install_run_crew(monkeypatch, result=result, events=events)
+    install_post_review(monkeypatch, [])
+
+    kwargs = kwargs_for(origin)
+    assert handle_pr_event.delay(**kwargs).get() == "completed"
+    with factory() as s:
+        older = s.get(Review, "older-run")
+    assert older.status == "superseded"
