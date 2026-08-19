@@ -1,4 +1,5 @@
 import type React from "react";
+import { useEffect, useRef, useState } from "react";
 
 const APP_URL = "https://github.com/apps/pr-reviewer-crew-bot";
 const GITHUB_URL: string =
@@ -152,90 +153,201 @@ export function WhatYouGet() {
 
 const STEPS = [
   {
-    n: "1",
+    n: "01",
     title: "Install the app on your repos",
     body: "One click on GitHub, pick the repositories. No CI config, no YAML, no webhooks to set up — the app brings its own.",
-    result: "the bot is watching for pull requests",
   },
   {
-    n: "2",
+    n: "02",
     title: "Open a pull request as normal",
-    body: "The bot clones your branch, indexes the repo into a code graph, and runs a crew of five agents: intent (with repo-exploration tools), correctness, tests, security, and an adversarial verifier.",
-    result: "a pending check appears, then completes in about a minute",
+    body: "The bot clones your branch, indexes the repo into a code graph, and runs a crew of five agents with whole-repo context.",
   },
   {
-    n: "3",
+    n: "03",
     title: "Read the verdict",
-    body: "The review leads with the intent check, pins divergences to changed lines, collapses the full crew report, and ends with exactly what it cost.",
-    result: "you know whether the PR does what it says before you read the diff",
+    body: "Intent check first, divergences pinned to changed lines, the full crew report collapsed, and exactly what it cost.",
   },
 ];
 
+const AGENTS = ["intent", "correctness", "tests", "security", "verifier"];
+
+function useCountUp(target: number, active: boolean, ms = 900) {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setValue(target);
+      return;
+    }
+    let raf = 0;
+    const t0 = performance.now();
+    const tick = (t: number) => {
+      const k = Math.min(1, (t - t0) / ms);
+      setValue(target * (1 - Math.pow(1 - k, 3)));
+      if (k < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, active, ms]);
+  return value;
+}
+
+function SimInstall() {
+  return (
+    <div className="sim-scene">
+      <div className="sim-titlebar">
+        <svg className="nav-logo" viewBox="0 0 32 32" aria-hidden="true">
+          <rect width="32" height="32" rx="7" fill="#18181b" />
+          <circle cx="11" cy="11" r="3.5" fill="var(--accent)" />
+          <circle cx="21" cy="11" r="3.5" fill="#e4e4e7" />
+          <circle cx="11" cy="21" r="3.5" fill="#e4e4e7" />
+          <circle cx="21" cy="21" r="3.5" fill="#e4e4e7" />
+        </svg>
+        <span className="sim-strong">pr-reviewer</span>
+        <span className="sim-install-btn">Install</span>
+      </div>
+      {["acme/api", "acme/web", "acme/infra"].map((repo, i) => (
+        <div className="sim-repo" style={{ animationDelay: `${0.25 + i * 0.22}s` }} key={repo}>
+          <span className="sim-check" style={{ animationDelay: `${0.45 + i * 0.22}s` }}>✓</span>
+          <span className="mono">{repo}</span>
+        </div>
+      ))}
+      <p className="sim-mono-line" style={{ animationDelay: "1.15s" }}>
+        → watching 3 repositories
+      </p>
+    </div>
+  );
+}
+
+function SimReview() {
+  return (
+    <div className="sim-scene">
+      <div className="sim-prbar">
+        <span className="sim-strong">Validate expense amounts</span>
+        <span className="sim-branch mono">feat/amounts</span>
+      </div>
+      <div className="sim-checkrow">
+        <span className="sim-pulse" />
+        <span className="mono">pr-reviewer — in progress</span>
+      </div>
+      <div className="sim-agents">
+        {AGENTS.map((a, i) => (
+          <span className="sim-agent mono" style={{ animationDelay: `${0.3 + i * 0.5}s` }} key={a}>
+            {a}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SimVerdict({ active }: { active: boolean }) {
+  const cost = useCountUp(0.038, active);
+  const tokens = useCountUp(10698, active);
+  return (
+    <div className="sim-scene">
+      <p className="sim-verdict-title sim-type">Intent check: 1 divergence(s)</p>
+      <div className="sim-finding" style={{ animationDelay: "1.15s" }}>
+        <span className="badge badge-major">major · intent</span>
+        <span className="sim-finding-text">
+          claims validation + tests; diff changes a help string
+        </span>
+      </div>
+      <p className="sim-mono-line" style={{ animationDelay: "1.7s" }}>
+        cost: ${cost.toFixed(3)} · {Math.round(tokens).toLocaleString()} tokens
+      </p>
+      <p className="sim-mono-line sim-neutral" style={{ animationDelay: "2.1s" }}>
+        ✓ neutral check — never blocks your merge
+      </p>
+    </div>
+  );
+}
+
 export function InstallSteps() {
+  const [active, setActive] = useState(0);
+  const stepRefs = useRef<(HTMLLIElement | null)[]>([]);
+
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setActive(Number((entry.target as HTMLElement).dataset.step));
+          }
+        }
+      },
+      { rootMargin: "-42% 0px -42% 0px" },
+    );
+    for (const el of stepRefs.current) {
+      if (el) observer.observe(el);
+    }
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <section>
       <p className="eyebrow">Install in three steps</p>
-      <ol className="steps mt-6">
-        {STEPS.map((s) => (
-          <li key={s.n} className="step" data-reveal>
-            <span className="step-ghost" aria-hidden="true">
-              {s.n}
-            </span>
-            <div className="step-marker">{s.n}</div>
-            <div className="step-body">
+      <div className="sim-layout mt-6">
+        <ol className="sim-steps">
+          {STEPS.map((s, i) => (
+            <li
+              key={s.n}
+              data-step={i}
+              ref={(el) => {
+                stepRefs.current[i] = el;
+              }}
+              className={`sim-step${active === i ? " is-active" : ""}`}
+            >
+              <span className="sim-step-index">{s.n}</span>
               <h3 className="step-title">{s.title}</h3>
-              <p className="mt-1.5 text-sm text-secondary">{s.body}</p>
-              <p className="step-result">
-                <span aria-hidden="true">→</span> {s.result}
-              </p>
-            </div>
-          </li>
-        ))}
-      </ol>
+              <p className="mt-2 text-sm text-secondary">{s.body}</p>
+            </li>
+          ))}
+        </ol>
+        <div className="sim-stage-wrap">
+          <div className="sim-stage panel" key={active}>
+            {active === 0 && <SimInstall />}
+            {active === 1 && <SimReview />}
+            {active === 2 && <SimVerdict active />}
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
 
-const PIPELINE = [
-  {
-    title: "Code graph",
-    body: "A tree-sitter indexer stores every function, class, and call/import edge in Postgres, incrementally per push.",
-    snippet: "$ prgraph index .\n737 symbols \u00b7 4,352 edges",
-  },
-  {
-    title: "Context slice",
-    body: "Changed symbols plus their callers, callees, and importers ride along in every agent's prompt.",
-    snippet: "[changed] report.monthly_total\n[caller]  cli.main",
-  },
-  {
-    title: "Intent tool loop",
-    body: "The intent agent queries graph neighbors, reads files, and greps the clone — read-only, capped, budgeted.",
-    snippet: "\u2192 graph_neighbors(\"load_expenses\")\ncallers: total_by_category \u2026",
-  },
-  {
-    title: "Adversarial verifier",
-    body: "A second model cross-examines every finding and rejects anything unsupported before it reaches your PR.",
-    snippet: "finding #3 \u2192 rejected\n\"evidence not in the diff\"",
-  },
+const FLOW = [
+  { title: "diff", snippet: "+42 −7 across 3 files" },
+  { title: "code graph", snippet: "$ prgraph index .\n737 symbols · 4,352 edges" },
+  { title: "context slice", snippet: "[changed] monthly_total\n[caller]  cli.main" },
+  { title: "agent crew", snippet: "intent · tools ≤10 calls\n+ 3 specialists" },
+  { title: "verifier", snippet: "finding #3 → rejected\n\"evidence not in diff\"" },
+  { title: "review", snippet: "inline comments\ncost: $0.038" },
 ];
 
 export function HowItWorks() {
   return (
     <section id="how">
       <p className="eyebrow">How it works</p>
-      <div className="pipeline mt-6 grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
-        {PIPELINE.map((p, i) => (
-          <div key={p.title} className="pipeline-stage" data-reveal style={{ transitionDelay: `${i * 90}ms` }}>
-            <p className="stage-index">{String(i + 1).padStart(2, "0")}</p>
-            <h3 className="stage-title mt-2">{p.title}</h3>
-            <p className="mt-1.5 text-sm text-secondary">{p.body}</p>
-            <div className="stage-snippet">
-              <pre>{p.snippet}</pre>
+      <div className="flow mt-8" data-reveal>
+        <svg className="flow-line" viewBox="0 0 100 2" preserveAspectRatio="none" aria-hidden="true">
+          <line x1="0" y1="1" x2="100" y2="1" className="flow-line-base" />
+          <line x1="0" y1="1" x2="100" y2="1" className="flow-line-dash" />
+        </svg>
+        {FLOW.map((node, i) => (
+          <div className="flow-node" key={node.title} style={{ animationDelay: `${i * 0.35}s` }}>
+            <button type="button" className="flow-chip">
+              <span className="stage-index">{String(i + 1).padStart(2, "0")}</span>
+              {node.title}
+            </button>
+            <div className="flow-pop panel">
+              <pre>{node.snippet}</pre>
             </div>
           </div>
         ))}
       </div>
-      <p className="mt-4 text-sm text-secondary">
+      <p className="mt-6 text-sm text-secondary">
         The full architecture, cost model, and reliability story live in the{" "}
         <a href={`${GITHUB_URL}#architecture`} target="_blank" rel="noreferrer" className="text-accent">
           project README
