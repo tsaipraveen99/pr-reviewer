@@ -158,11 +158,17 @@ def handle_pr_event(self, installation_id: int, repo_id: int, repo_full_name: st
         ctx, _meta = fetch_pr(deps.app_client, installation_id, owner, repo, pr_number)
     except GitHubError:
         logger.exception("fetch_pr failed for %s#%s", repo_full_name, pr_number)
-        cr = deps.checks.create(installation_id, owner, repo, head_sha)
-        _complete_quietly(deps.checks, installation_id, owner, repo, cr, "neutral",
-                          "pr-reviewer could not fetch this PR",
-                          "pr-reviewer could not fetch this pull request from "
-                          "GitHub; it will retry on the next push.")
+        try:
+            cr = deps.checks.create(installation_id, owner, repo, head_sha)
+            _complete_quietly(deps.checks, installation_id, owner, repo, cr, "neutral",
+                              "pr-reviewer could not fetch this PR",
+                              "pr-reviewer could not fetch this pull request from "
+                              "GitHub; it will retry on the next push.")
+        except Exception:
+            # GitHub fully down: the visibility check itself can't be posted.
+            # Nothing was written, so a redelivery retries cleanly.
+            logger.exception("could not post fetch-failure check for %s#%s",
+                             repo_full_name, pr_number)
         return "failed"
 
     reason = _ineligible_reason(deps, repo_id, ctx, settings)

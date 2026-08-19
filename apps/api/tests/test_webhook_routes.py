@@ -282,3 +282,12 @@ def test_oversized_body_rejected_before_verification(harness):
                         headers={"Content-Length": "2000000"})
     assert r.status_code == 413
     assert enqueued == []
+
+
+def test_malformed_content_length_does_not_500(harness):
+    app, _, enqueued = harness
+    with TestClient(app) as client:
+        r = client.post("/webhooks/github", content=b"{}",
+                        headers={"Content-Length": "not-a-number"})
+    assert r.status_code in (400, 401, 411, 413)
+    assert enqueued == []

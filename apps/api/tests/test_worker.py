@@ -642,3 +642,24 @@ def test_run_crew_shapes_result_and_stamps_events(monkeypatch):
     assert [e["type"] for e in events] == ["node_started", "node_finished", "done"]
     assert [e["seq"] for e in events] == [1, 2, 3]
     assert events[-1] == {"type": "done", "seq": 3}
+
+
+def test_fetch_failure_when_github_fully_down_still_returns_failed(worker_env, tmp_path, monkeypatch):
+    """checks.create raising during the fetch-failure path must not escape."""
+    import prcrew.github.pr_data as pr_data_mod
+    from prcrew.github.client import GitHubError
+
+    factory, _checks, settings, _ = worker_env
+    origin = make_origin(tmp_path)
+    kwargs = kwargs_for(origin)
+
+    def boom(*a, **kw):
+        raise GitHubError(502, "bad gateway")
+    monkeypatch.setattr(pr_data_mod, "fetch_pr", boom)
+
+    class DownChecks(FakeChecks):
+        def create(self, *a, **kw):
+            raise GitHubError(503, "down")
+    monkeypatch.setattr(tasks_mod, "_deps",
+                        lambda: Deps(factory, DownChecks(), None, FakeTokens(), settings))
+    assert handle_pr_event.delay(**kwargs).get() == "failed"
