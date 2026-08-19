@@ -53,17 +53,6 @@ export function Hero() {
         </a>
         <span className="text-xs text-secondary">Currently in private preview.</span>
       </div>
-      <div className="mt-8 shot-frame">
-        <img
-          src="/shots/intent-catch.png"
-          alt="A pr-reviewer GitHub review: intent check reporting one divergence between the PR description and the change, with confirmed findings and a cost footer of $0.038"
-          loading="eager"
-        />
-      </div>
-      <p className="shot-caption">
-        A real review: the PR description promised validation and tests; the diff changed a
-        help string. Every claim is checked, priced, and pinned to a line.
-      </p>
     </section>
   );
 }
@@ -72,6 +61,10 @@ export function WhatYouGet() {
   return (
     <section>
       <p className="eyebrow">What you get</p>
+      <p className="mt-1 text-sm text-secondary">
+        Real reviews from a staged test: one PR whose description promised validation and
+        tests while the diff changed a help string, and one honest PR.
+      </p>
       <div className="mt-4 grid gap-6 md:grid-cols-2">
         <figure className="shot-figure">
           <div className="shot-frame">
