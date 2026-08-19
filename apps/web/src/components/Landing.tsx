@@ -4,13 +4,16 @@ const APP_URL = "https://github.com/apps/pr-reviewer-crew-bot";
 const GITHUB_URL: string =
   import.meta.env.VITE_GITHUB_URL ?? "https://github.com/tsaipraveen99/pr-reviewer";
 
-// Programmatic scroll instead of bare hash links: the permalink hash format
-// (#r=<id>) shares the fragment namespace, and re-clicking a link whose hash
-// is already set is a no-op for native anchors. scrollIntoView always works.
+// Programmatic, INSTANT scroll instead of bare hash links. Two reasons:
+// the permalink format (#r=<id>) shares the fragment namespace and a
+// re-click on an already-set hash is a native no-op; and Chromium cancels
+// SMOOTH programmatic scrolls on any concurrent input or repaint jank,
+// which reads as "the link did nothing". An instant jump cannot be
+// cancelled.
 function goTo(id: string) {
   return (e: React.MouseEvent) => {
     e.preventDefault();
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById(id)?.scrollIntoView({ behavior: "auto", block: "start" });
     history.replaceState(null, "", `#${id}`);
   };
 }

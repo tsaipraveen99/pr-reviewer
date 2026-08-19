@@ -369,10 +369,6 @@ h1 {
 
 /* Landing: nav, hero, screenshots, steps */
 
-html {
-  scroll-behavior: smooth;
-}
-
 /* Anchor targets land below the sticky nav instead of underneath it. */
 section[id],
 div[id] {
@@ -605,8 +601,6 @@ div[id] {
   }
   .shot-stack .shot-frame {
     transform: rotate(-2.2deg);
-    filter: blur(2.5px) saturate(0.9);
-    opacity: 0.85;
     transition:
       transform 0.28s cubic-bezier(0.2, 0.7, 0.2, 1),
       filter 0.28s ease,
@@ -620,20 +614,19 @@ div[id] {
   .shot-stack .shot-figure:focus-within {
     z-index: 5;
   }
+  /* Focus follows the pointer: the hovered card straightens and lifts,
+     its sibling recedes. At rest both are sharp and readable. */
+  .shot-stack:hover .shot-figure:not(:hover) .shot-frame,
+  .shot-stack:focus-within .shot-figure:not(:focus-within) .shot-frame {
+    filter: blur(2px) saturate(0.9);
+    opacity: 0.6;
+  }
   .shot-stack .shot-figure:hover .shot-frame,
   .shot-stack .shot-figure:focus-within .shot-frame {
-    transform: rotate(0deg) scale(1.02);
-    filter: none;
-    opacity: 1;
+    transform: rotate(0deg) scale(1.03);
     box-shadow: 0 18px 44px rgb(0 0 0 / 0.35);
   }
   .shot-stack .shot-caption {
-    opacity: 0;
-    transition: opacity 0.25s ease;
     padding-right: 24px;
-  }
-  .shot-stack .shot-figure:hover .shot-caption,
-  .shot-stack .shot-figure:focus-within .shot-caption {
-    opacity: 1;
   }
 }
