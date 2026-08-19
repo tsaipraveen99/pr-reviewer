@@ -380,7 +380,8 @@ class MascotBoundary extends Component<{ children: ReactNode }, { failed: boolea
     if (this.state.failed) {
       return (
         <div className="mascot-loading mono">
-          (the robot needs WebGL — imagine something adorable here)
+          the robot could not load — a stale tab after a redeploy is the usual
+          culprit; refresh to bring it back
         </div>
       );
     }
