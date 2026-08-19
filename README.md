@@ -8,29 +8,57 @@ pr-reviewer reviews a public GitHub pull request with a small crew of LLM agents
 
 ## Architecture
 
+pr-reviewer runs the same agent crew through two front doors: a **web demo**
+(paste a PR URL, watch the run stream live) and a **GitHub App** that reviews
+pull requests automatically with whole-repository context.
+
 ```mermaid
-flowchart LR
-    START([PR URL]) --> intake[intake]
-    intake --> intent[intent]
-    intake --> correctness[correctness]
-    intake --> tests[tests]
-    intake --> security[security]
-    intent --> verifier[verifier]
-    correctness --> verifier
-    tests --> verifier
-    security --> verifier
-    verifier --> synthesizer[synthesizer]
-    synthesizer --> END([review report])
+flowchart TB
+    subgraph web["Web demo (Vercel + FastAPI)"]
+        URL([PR URL]) --> API[FastAPI + SSE]
+    end
+    subgraph app["GitHub App (Celery worker)"]
+        WH([PR webhook]) --> VER[verify signature] --> Q[(Redis queue)]
+        Q --> CLONE[shallow clone PR head]
+        CLONE --> IDX[tree-sitter index → Postgres graph]
+        IDX --> SLICE[context slice: changed symbols + callers/callees/importers]
+    end
+    API --> CREW
+    SLICE --> CREW
+    subgraph CREW["LangGraph crew"]
+        direction TB
+        INTENT["intent (Sonnet tool loop:<br/>graph_neighbors · read_file · grep)"]
+        C[correctness] & T[tests] & S[security]
+        INTENT --> V[adversarial verifier]
+        C --> V
+        T --> V
+        S --> V
+        V --> SYN[synthesizer]
+    end
+    SYN --> OUT1([live SSE stream + permalink])
+    SYN --> OUT2([GitHub Review: inline intent comments,<br/>collapsed crew report, cost footer + neutral check])
 ```
 
-`intake` fetches the PR diff, title, description, and any linked issue from GitHub. Four specialists run concurrently as LangGraph nodes fanning out from `intake`:
+**The intent agent is the headline.** On the bot path it is not a one-shot
+prompt: it is a bounded tool-use loop on Claude Sonnet that explores the
+repository before judging whether the diff does what the PR description
+claims. It queries a code graph (`graph_neighbors`: who calls this symbol),
+reads exact file ranges, and greps the clone — all read-only, sandboxed to
+the checkout, capped at 10 tool calls and a token budget, with a prompt-cache
+breakpoint on the stable prefix. Divergences between the description and the
+change land as inline comments on the exact changed lines.
 
-- **intent** — does the diff actually do what the PR description and linked issue claim?
-- **correctness** — logic errors, broken invariants, unhandled edge cases
-- **tests** — behavior changed without coverage, weakened or deleted tests
-- **security** — injection, missing authz, secrets, unsafe deserialization
+**The code graph** is `packages/graph` (`prgraph`): a tree-sitter indexer for
+Python/JS/TS that incrementally stores files, symbols, and call/import edges
+in Postgres, plus a `context_slice` query that assembles the changed symbols
+and their 1-hop neighborhood into a bounded prompt section every specialist
+sees. The same tables serve the intent agent's `graph_neighbors` tool.
 
-Each specialist is instructed to report only findings it can support with a direct quote from the diff, and to return nothing rather than invent an issue (`apps/api/src/prcrew/graph/specialists.py`). The graph joins on all four before running the verifier and synthesizer (`apps/api/src/prcrew/graph/build.py`).
+**Reliability shape:** reviews are idempotent per (repo, PR, head sha); a new
+push supersedes the in-flight review of the old sha; the check run and review
+row are created only after a successful clone so retries genuinely retry; and
+every failure path completes the Check Run (always `neutral` — the bot
+informs, it never blocks a merge).
 
 ## Why the verifier exists
 
@@ -96,6 +124,14 @@ This is a public demo backed by paid LLM calls, so it's guarded on several axes:
 - **Public repos only** — private repos are rejected at the GitHub-fetch step
 - **Haiku for live runs** — specialists default to `claude-haiku-4-5-20251001`; only the synthesizer uses a larger model
 - **Showcase replays cost zero** — the showcase gallery replays precomputed event streams from disk (`apps/api/src/prcrew/showcases/store.py`); no LLM calls happen on replay
+
+Bot-path guards (GitHub App):
+
+- **Size guards** — PRs over 40 files / 1,500 changed lines are skipped with a neutral check explaining why (`MAX_PR_FILES`, `MAX_PR_LINES`)
+- **Daily cap** — 20 reviews per repo per day (`DAILY_REPO_CAP`)
+- **Intent-loop budget** — ≤10 tool calls, 8,192 output tokens per call, cumulative input-token budget (`INTENT_TOKEN_BUDGET`), prompt caching on the stable prefix
+- **Kill switch** — `REVIEWS_ENABLED=false` stops all bot reviews instantly
+- **Installation allowlist** — only allowlisted installation ids are reviewed, even if the App is somehow installed elsewhere
 
 ## Testing
 
