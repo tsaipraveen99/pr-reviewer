@@ -1,25 +1,38 @@
+import type React from "react";
+
 const APP_URL = "https://github.com/apps/pr-reviewer-crew-bot";
 const GITHUB_URL: string =
   import.meta.env.VITE_GITHUB_URL ?? "https://github.com/tsaipraveen99/pr-reviewer";
+
+// Programmatic scroll instead of bare hash links: the permalink hash format
+// (#r=<id>) shares the fragment namespace, and re-clicking a link whose hash
+// is already set is a no-op for native anchors. scrollIntoView always works.
+function goTo(id: string) {
+  return (e: React.MouseEvent) => {
+    e.preventDefault();
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    history.replaceState(null, "", `#${id}`);
+  };
+}
 
 export function TopNav() {
   return (
     <nav className="top-nav">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-6">
-        <a href="#top" className="nav-wordmark">
+        <a href="#top" onClick={goTo("top")} className="nav-wordmark">
           pr-reviewer
         </a>
         <div className="flex items-center gap-5">
-          <a href="#github-app" className="nav-link">
+          <a href="#github-app" onClick={goTo("github-app")} className="nav-link">
             GitHub App
           </a>
-          <a href="#demo" className="nav-link">
+          <a href="#demo" onClick={goTo("demo")} className="nav-link">
             Live demo
           </a>
-          <a href="#how" className="nav-link nav-link-wide">
+          <a href="#how" onClick={goTo("how")} className="nav-link nav-link-wide">
             How it works
           </a>
-          <a href="#showcases" className="nav-link nav-link-wide">
+          <a href="#showcases" onClick={goTo("showcases")} className="nav-link nav-link-wide">
             Showcases
           </a>
           <a href={GITHUB_URL} target="_blank" rel="noreferrer" className="nav-link">
@@ -48,7 +61,7 @@ export function Hero() {
         <a href={APP_URL} target="_blank" rel="noreferrer" className="mac-button inline-block">
           Install the GitHub App
         </a>
-        <a href="#demo" className="mac-button-secondary inline-block">
+        <a href="#demo" onClick={goTo("demo")} className="mac-button-secondary inline-block">
           Try the live demo
         </a>
         <span className="text-xs text-secondary">Currently in private preview.</span>
@@ -71,6 +84,8 @@ export function WhatYouGet() {
             <img
               src="/shots/inline-comment.png"
               alt="An inline pr-reviewer comment pinned to the changed diff line, labeled intent major"
+              width={1202}
+              height={760}
               loading="lazy"
             />
           </div>
@@ -84,6 +99,8 @@ export function WhatYouGet() {
             <img
               src="/shots/clean-pass.png"
               alt="A pr-reviewer review of an honest pull request: intent check reports the change matches its description"
+              width={1394}
+              height={954}
               loading="lazy"
             />
           </div>
