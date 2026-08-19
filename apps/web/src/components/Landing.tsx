@@ -42,6 +42,13 @@ export function TopNav() {
     <nav className="top-nav">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-6">
         <a href="#top" onClick={goTo("top")} className="nav-wordmark">
+          <svg className="nav-logo" viewBox="0 0 32 32" aria-hidden="true">
+            <rect width="32" height="32" rx="7" fill="#18181b" />
+            <circle cx="11" cy="11" r="3.5" fill="var(--accent)" />
+            <circle cx="21" cy="11" r="3.5" fill="#e4e4e7" />
+            <circle cx="11" cy="21" r="3.5" fill="#e4e4e7" />
+            <circle cx="21" cy="21" r="3.5" fill="#e4e4e7" />
+          </svg>
           pr-reviewer
         </a>
         <div className="flex items-center gap-5">

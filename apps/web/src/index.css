@@ -758,3 +758,15 @@ a.text-accent:hover {
   text-underline-offset: 6px;
   text-decoration-color: var(--accent);
 }
+
+.nav-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+.nav-logo {
+  width: 21px;
+  height: 21px;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
