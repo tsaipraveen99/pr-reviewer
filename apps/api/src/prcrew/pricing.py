@@ -1,3 +1,7 @@
+"""Sticker-price cost accounting for Anthropic models, including
+prompt-cache write (1.25x input) and read (0.1x input) rates.
+"""
+
 # USD price per MILLION tokens, keyed by model-id prefix: (input, output).
 # Sonnet 5 carries an intro price through 2026-08-31; we display sticker
 # price and do not attempt to model the promotional window here.
