@@ -75,3 +75,31 @@ def test_post_review_422_falls_back_to_body_only():
     import json
     second = json.loads(route.calls[1].request.content)
     assert second["comments"] == [] and "orphan note" in second["body"]
+
+
+def test_llm_text_is_escaped_and_capped():
+    evil = VerifiedFinding(
+        id="intent-0", agent="intent", file="a.py", line=12, severity="major",
+        claim="</details><script>alert(1)</script>" + "x" * 1000,
+        evidence="<img src=x>" + "y" * 1000, verdict="confirmed", reason="r")
+    comments, _ = build_inline_comments([evil], [ChangedFile("a.py", [(10, 20)])])
+    body = comments[0]["body"]
+    assert "</details>" not in body and "<script>" not in body
+    assert "&lt;/details&gt;" in body
+    assert len(body) < 1200  # 400 + 600 caps plus formatting
+
+    md = compose_body([evil], [], "review", {"input_tokens": 1, "output_tokens": 1,
+                                             "cost_usd": 0.0})
+    assert "</details>" in md          # OUR structural tag survives...
+    assert "&lt;/details&gt;" in md    # ...the finding's copy is escaped
+
+
+@respx.mock
+def test_post_review_caps_body_length():
+    route = respx.post("https://api.github.com/repos/x/y/pulls/7/reviews").mock(
+        return_value=httpx.Response(200, json={"id": 1}))
+    client = AppClient(FakeTokens(), sleep=lambda s: None)
+    post_review(client, 111, "x", "y", 7, "z" * 70_000, [])
+    import json
+    sent = json.loads(route.calls[0].request.content)
+    assert len(sent["body"]) == 60_000

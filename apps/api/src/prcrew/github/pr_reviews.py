@@ -6,6 +6,15 @@ from prcrew.github.client import GitHubError
 from prcrew.models import VerifiedFinding
 
 
+def _safe(text: str, limit: int) -> str:
+    """LLM-derived text goes into markdown we author: escape angle brackets so
+    planted tags (a PR can steer what the model quotes) cannot break the
+    <details> structure or make the bot 'say' arbitrary HTML, and cap the
+    length."""
+    escaped = text.replace("<", "&lt;").replace(">", "&gt;")
+    return escaped if len(escaped) <= limit else escaped[: limit - 1] + "…"
+
+
 def build_inline_comments(confirmed: list[VerifiedFinding],
                           files: list[ChangedFile]) -> tuple[list[dict], list[VerifiedFinding]]:
     comments, unmapped = [], []
@@ -13,7 +22,8 @@ def build_inline_comments(confirmed: list[VerifiedFinding],
         if (f.agent == "intent" and f.line is not None
                 and line_is_changed(files, f.file, f.line)):
             comments.append({"path": f.file, "line": f.line, "side": "RIGHT",
-                             "body": f"**intent · {f.severity}** — {f.claim}\n\n{f.evidence}"})
+                             "body": f"**intent · {f.severity}** — {_safe(f.claim, 400)}"
+                                     f"\n\n{_safe(f.evidence, 600)}"})
         else:
             unmapped.append(f)
     return comments, unmapped
@@ -21,7 +31,7 @@ def build_inline_comments(confirmed: list[VerifiedFinding],
 
 def _finding_line(f: VerifiedFinding) -> str:
     loc = f"{f.file}:{f.line}" if f.line is not None else f.file
-    return f"- **{f.severity}** ({f.agent}) `{loc}` — {f.claim}"
+    return f"- **{f.severity}** ({f.agent}) `{loc}` — {_safe(f.claim, 400)}"
 
 
 def compose_body(intent_confirmed: list[VerifiedFinding],
@@ -43,6 +53,7 @@ def compose_body(intent_confirmed: list[VerifiedFinding],
 def post_review(client: AppClient, installation_id: int, owner: str, repo: str,
                 number: int, body: str, comments: list[dict]) -> int:
     path = f"/repos/{owner}/{repo}/pulls/{number}/reviews"
+    body = body[:60000]
     payload = {"event": "COMMENT", "body": body, "comments": comments}
     try:
         return client.request(installation_id, "POST", path, json_body=payload).json()["id"]
@@ -50,6 +61,6 @@ def post_review(client: AppClient, installation_id: int, owner: str, repo: str,
         if e.status != 422 or not comments:
             raise
         orphans = "\n".join(f"- `{c['path']}:{c['line']}` {c['body']}" for c in comments)
-        fallback = {"event": "COMMENT", "comments": [],
-                    "body": f"{body}\n\nInline placement unavailable:\n{orphans}"}
+        fallback_body = f"{body}\n\nInline placement unavailable:\n{orphans}"[:60000]
+        fallback = {"event": "COMMENT", "comments": [], "body": fallback_body}
         return client.request(installation_id, "POST", path, json_body=fallback).json()["id"]
