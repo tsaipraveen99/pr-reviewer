@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { AgentBoard } from "./components/AgentBoard";
-import { Hero, HowItWorks, InstallSteps, TopNav, WhatYouGet } from "./components/Landing";
+import { Hero, HowItWorks, InstallSteps, MeetTheBot, TopNav, WhatYouGet } from "./components/Landing";
 import { PRForm } from "./components/PRForm";
 import { ReviewPane } from "./components/ReviewPane";
 import { ShowcaseGallery } from "./components/ShowcaseGallery";
@@ -26,6 +26,7 @@ function App() {
         <WhatYouGet />
         <InstallSteps />
         <HowItWorks />
+        <MeetTheBot />
 
         <section id="demo" className="flex flex-col gap-6">
           <div>

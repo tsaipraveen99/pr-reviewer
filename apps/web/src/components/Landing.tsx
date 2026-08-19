@@ -1,5 +1,8 @@
 import type React from "react";
-import { useEffect, useRef, useState } from "react";
+import { Component, Suspense, lazy, useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
+
+const RobotMascot = lazy(() => import("@/components/ui/robot-mascot"));
 
 const APP_URL = "https://github.com/apps/pr-reviewer-crew-bot";
 const GITHUB_URL: string =
@@ -363,6 +366,65 @@ export function HowItWorks() {
         </a>{" "}
         gets you running on your own key and infrastructure.
       </p>
+    </section>
+  );
+}
+
+
+class MascotBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    if (this.state.failed) {
+      return (
+        <div className="mascot-loading mono">
+          (the robot needs WebGL — imagine something adorable here)
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export function MeetTheBot() {
+  const [inView, setInView] = useState(false);
+  const holderRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const el = holderRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setInView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "300px 0px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <section>
+      <p className="eyebrow">Meet the reviewer</p>
+      <p className="mt-1 text-sm text-secondary">
+        The face of the crew. Move your cursor and it follows; click it and it
+        loves you. The brain is everything above.
+      </p>
+      <div ref={holderRef} className="mascot-stage mt-4">
+        {inView && (
+          <MascotBoundary>
+            <Suspense fallback={<div className="mascot-loading mono">warming up…</div>}>
+              <RobotMascot />
+            </Suspense>
+          </MascotBoundary>
+        )}
+      </div>
     </section>
   );
 }
