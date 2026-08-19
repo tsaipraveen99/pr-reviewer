@@ -1155,3 +1155,17 @@ a.text-accent:hover {
     height: 320px;
   }
 }
+
+/* CSS ground shadow replaces the GPU ContactShadows pass */
+.mascot-stage::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 17%;
+  width: 170px;
+  height: 26px;
+  translate: -50%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgb(0 0 0 / 0.28) 0%, transparent 68%);
+  pointer-events: none;
+}

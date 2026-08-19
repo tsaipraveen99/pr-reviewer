@@ -1,31 +1,50 @@
 // Brand-adapted composition of the robot: our canvas, our colors, no
-// marketplace navbar. Loaded lazily from the landing so the three.js stack
-// stays out of the main bundle.
+// marketplace navbar. Deliberately LIGHTWEIGHT: no shadow maps, no
+// ContactShadows render pass, no external HDR environment, capped DPR --
+// heavyweight contexts are exactly what Chrome's GPU process kills on
+// busy machines (white canvas + sad-tab icon). Ground shadow is CSS.
+// A lost context recreates the Canvas up to twice, then degrades politely.
 
+import { useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { ContactShadows, Environment } from "@react-three/drei";
 import { ResponsiveGroup, RobotPrototype } from "@/components/ui/robot-hero";
 
 export default function RobotMascot() {
+  const [generation, setGeneration] = useState(0);
+  const [dead, setDead] = useState(false);
+  const attempts = useRef(0);
+
+  if (dead) {
+    return (
+      <div className="mascot-loading mono">
+        your GPU declined to render the robot — it sends its regards
+      </div>
+    );
+  }
+
   return (
     <Canvas
-      shadows
+      key={generation}
       camera={{ position: [0, 0.2, 6], fov: 40 }}
-      gl={{ alpha: true, antialias: true }}
+      dpr={[1, 1.5]}
+      gl={{ alpha: true, antialias: true, powerPreference: "low-power" }}
       style={{ background: "transparent" }}
+      onCreated={({ gl }) => {
+        gl.domElement.addEventListener("webglcontextlost", (e) => {
+          e.preventDefault();
+          attempts.current += 1;
+          if (attempts.current > 2) {
+            setDead(true);
+          } else {
+            setTimeout(() => setGeneration((g) => g + 1), 800);
+          }
+        });
+      }}
     >
-      <ambientLight intensity={0.85} color="#ffffff" />
-      <Environment preset="studio" blur={0.5} />
+      <ambientLight intensity={1.25} color="#ffffff" />
+      <directionalLight position={[2, 4, 3]} intensity={0.9} color="#ffffff" />
+      <directionalLight position={[-3, 2, -2]} intensity={0.25} color="#dfe8e2" />
       <ResponsiveGroup scale={1}>
-        <ContactShadows
-          position={[0, -0.79, 0]}
-          opacity={0.55}
-          scale={15}
-          resolution={1024}
-          blur={1.7}
-          far={2.5}
-          color="#000000"
-        />
         <RobotPrototype
           neckParams={{
             baseR: 0.215,
