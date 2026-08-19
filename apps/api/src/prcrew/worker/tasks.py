@@ -265,6 +265,33 @@ def handle_pr_event(self, installation_id: int, repo_id: int, repo_full_name: st
         return "failed"
 
 
+@app.task(name="prcrew.refresh_index")
+def refresh_index(installation_id: int, repo_id: int, repo_full_name: str,
+                  head_sha: str, default_branch: str) -> str:
+    """Keep the default-branch index warm after a push. No LLM calls."""
+    from prcrew.worker.clones import CloneError, ensure_clone
+    from prcrew.worker.indexing import ensure_index
+
+    deps = _deps()
+    if installation_id not in deps.settings.allowed_installations():
+        return "not_allowed"
+    clone_root = Path(deps.settings.clones_dir) / f"{repo_id}-default"
+    token = deps.tokens.token(installation_id)
+    clone_url = f"https://x-access-token:{token}@github.com/{repo_full_name}.git"
+    try:
+        ensure_clone(clone_url, clone_root, f"refs/heads/{default_branch}",
+                     head_sha, token=token)
+    except CloneError:
+        logger.exception("refresh_index clone failed for repo %s", repo_id)
+        return "failed"
+    try:
+        ensure_index(deps.session_factory, repo_id, clone_root, head_sha)
+    except Exception:
+        logger.exception("refresh_index indexing failed for repo %s", repo_id)
+        return "failed"
+    return "indexed"
+
+
 def _ineligible_reason(deps, repo_id: int, ctx, settings) -> str | None:
     if ctx.changed_files > settings.max_pr_files or ctx.changed_lines > settings.max_pr_lines:
         return (f"PR too large to review: {ctx.changed_files} files / "

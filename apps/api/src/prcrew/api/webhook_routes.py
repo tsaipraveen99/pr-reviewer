@@ -14,7 +14,7 @@ PR_ACTIONS = {"opened", "synchronize", "reopened"}
 
 
 def make_webhook_router(settings: Settings, session_factory,
-                        enqueue: Callable[[dict], None],
+                        enqueue: Callable[[str, dict], None],
                         deliveries: RecentDeliveries) -> APIRouter:
     router = APIRouter()
 
@@ -32,6 +32,8 @@ def make_webhook_router(settings: Settings, session_factory,
 
         if event == "pull_request":
             return await _pull_request(payload)
+        if event == "push":
+            return await _push(payload)
         if event == "installation":
             return await _installation(payload)
         if event == "installation_repositories":
@@ -47,9 +49,24 @@ def make_webhook_router(settings: Settings, session_factory,
                 or installation_id not in settings.allowed_installations()):
             return {"status": "skipped"}
         repo = payload["repository"]
-        enqueue({"installation_id": installation_id, "repo_id": repo["id"],
+        enqueue("prcrew.handle_pr_event",
+                {"installation_id": installation_id, "repo_id": repo["id"],
                  "repo_full_name": repo["full_name"], "pr_number": pr["number"],
                  "head_sha": pr["head"]["sha"]})
+        return {"status": "queued"}
+
+    async def _push(payload: dict):
+        repo = payload.get("repository") or {}
+        installation_id = (payload.get("installation") or {}).get("id")
+        after = payload.get("after") or ""
+        if (payload.get("ref") != f"refs/heads/{repo.get('default_branch')}"
+                or set(after) == {"0"} or not after
+                or installation_id not in settings.allowed_installations()):
+            return {"status": "skipped"}
+        enqueue("prcrew.refresh_index",
+                {"installation_id": installation_id, "repo_id": repo["id"],
+                 "repo_full_name": repo["full_name"], "head_sha": after,
+                 "default_branch": repo["default_branch"]})
         return {"status": "queued"}
 
     async def _installation(payload: dict):

@@ -10,7 +10,7 @@ from prcrew.settings import Settings
 from prcrew.worker import tasks
 from prcrew.worker import tasks as tasks_mod
 from prcrew.worker.celery_app import app, make_celery
-from prcrew.worker.tasks import Deps, handle_pr_event
+from prcrew.worker.tasks import Deps, handle_pr_event, refresh_index
 from tests.test_clones import head_sha, make_origin
 
 
@@ -498,6 +498,55 @@ def test_disallowed_installation(worker_env, tmp_path):
     origin = make_origin(tmp_path)
     kwargs = {**kwargs_for(origin), "installation_id": 42}
     assert handle_pr_event.delay(**kwargs).get() == "not_allowed"
+
+
+@pytest.fixture()
+def worker_env_with_origin(worker_env, tmp_path, monkeypatch):
+    """worker_env plus a real git origin routed in place of the network clone
+    -- same plumbing test_happy_path_completes uses for handle_pr_event,
+    reused here so refresh_index exercises a real clone+index against sqlite."""
+    factory, checks, settings, _mp = worker_env
+    origin = make_origin(tmp_path)
+    _route_clone_to_local_origin(monkeypatch, origin)
+    sha = head_sha(origin)
+    return factory, checks, settings, monkeypatch, origin, sha
+
+
+def test_refresh_index_clones_and_indexes(worker_env_with_origin):
+    factory, _checks, _settings, _mp, _origin, sha = worker_env_with_origin
+    result = refresh_index.delay(installation_id=111, repo_id=999,
+                                 repo_full_name="x/y", head_sha=sha,
+                                 default_branch="main").get()
+    assert result == "indexed"
+    with factory() as s:
+        row = s.get(Repo, 999)
+    assert row.index_status == "ready" and row.indexed_commit == sha
+
+
+def test_refresh_index_disallowed(worker_env_with_origin):
+    _factory, _checks, _settings, _mp, _origin, sha = worker_env_with_origin
+    outcome = refresh_index.delay(installation_id=42, repo_id=999,
+                                  repo_full_name="x/y", head_sha=sha,
+                                  default_branch="main").get()
+    assert outcome == "not_allowed"
+
+
+def test_refresh_index_clone_failure_returns_failed(worker_env, tmp_path, monkeypatch):
+    # Uses worker_env (not worker_env_with_origin) directly: the latter
+    # already routes ensure_clone to a wrapper closing over the real
+    # function, and _route_clone_to_missing_origin would then wrap *that*
+    # wrapper instead of the real ensure_clone, silently succeeding against
+    # the local origin instead of failing. Mirrors
+    # test_clone_failure_retries_genuinely_and_final_failure_creates_nothing.
+    factory, _checks, _settings, _mp = worker_env
+    _route_clone_to_missing_origin(monkeypatch, tmp_path)
+    outcome = refresh_index.delay(installation_id=111, repo_id=999,
+                                  repo_full_name="x/y", head_sha="d" * 40,
+                                  default_branch="main").get()
+    assert outcome == "failed"
+    with factory() as s:
+        row = s.get(Repo, 999)
+    assert row.index_status == "pending"  # unchanged: clone never succeeded
 
 
 def test_deps_reuses_engine(monkeypatch, tmp_path):

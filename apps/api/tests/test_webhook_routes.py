@@ -27,8 +27,12 @@ def harness(tmp_path):
     asyncio.run(_setup())
     factory = make_session_factory(engine)
     enqueued: list[dict] = []
+
+    def enqueue(task, kwargs):
+        enqueued.append({"task": task, "kwargs": kwargs})
+
     settings = Settings(github_webhook_secret=SECRET, allowed_installation_ids="111")
-    router = make_webhook_router(settings, factory, enqueued.append, RecentDeliveries())
+    router = make_webhook_router(settings, factory, enqueue, RecentDeliveries())
     app = FastAPI()
     app.include_router(router)
     yield app, factory, enqueued
@@ -65,8 +69,10 @@ def test_pr_opened_enqueues(harness):
     with TestClient(app) as client:
         r = post(client, "pull_request", PR_PAYLOAD)
     assert r.status_code == 202
-    assert enqueued == [{"installation_id": 111, "repo_id": 999, "repo_full_name": "x/y",
-                         "pr_number": 7, "head_sha": "b" * 40}]
+    assert enqueued == [{"task": "prcrew.handle_pr_event",
+                         "kwargs": {"installation_id": 111, "repo_id": 999,
+                                    "repo_full_name": "x/y", "pr_number": 7,
+                                    "head_sha": "b" * 40}}]
 
 
 def test_duplicate_delivery_not_reenqueued(harness):
@@ -224,10 +230,46 @@ def test_create_app_mounts_injected_router(harness):
     # wrong signature) rather than fall through to a 404.
     _, factory, _ = harness
     router = make_webhook_router(Settings(github_webhook_secret=SECRET), factory,
-                                 lambda kw: None, RecentDeliveries())
+                                 lambda task, kw: None, RecentDeliveries())
     app = create_app(run_manager=object(), github=object(), webhook_router=router)
     with TestClient(app) as client:
         r = client.post("/webhooks/github", content=b"{}", headers={
             "X-GitHub-Event": "ping", "X-GitHub-Delivery": "d-mount",
             "X-Hub-Signature-256": "sha256=bad", "Content-Type": "application/json"})
     assert r.status_code == 401
+
+
+PUSH_PAYLOAD = {
+    "ref": "refs/heads/main",
+    "after": "d" * 40,
+    "installation": {"id": 111},
+    "repository": {"id": 999, "full_name": "x/y", "default_branch": "main"},
+}
+
+
+def test_push_to_default_branch_enqueues_refresh(harness):
+    app, _, enqueued = harness
+    with TestClient(app) as client:
+        assert post(client, "push", PUSH_PAYLOAD, delivery="p-1").status_code == 202
+    assert enqueued == [{"task": "prcrew.refresh_index",
+                         "kwargs": {"installation_id": 111, "repo_id": 999,
+                                    "repo_full_name": "x/y", "head_sha": "d" * 40,
+                                    "default_branch": "main"}}]
+
+
+def test_push_to_other_branch_or_deletion_ignored(harness):
+    app, _, enqueued = harness
+    feature = {**PUSH_PAYLOAD, "ref": "refs/heads/feature"}
+    deletion = {**PUSH_PAYLOAD, "after": "0" * 40}
+    with TestClient(app) as client:
+        post(client, "push", feature, delivery="p-2")
+        post(client, "push", deletion, delivery="p-3")
+    assert enqueued == []
+
+
+def test_push_disallowed_installation_ignored(harness):
+    app, _, enqueued = harness
+    p = {**PUSH_PAYLOAD, "installation": {"id": 42}}
+    with TestClient(app) as client:
+        post(client, "push", p, delivery="p-4")
+    assert enqueued == []

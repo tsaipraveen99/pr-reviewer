@@ -77,8 +77,8 @@ def create_app(run_manager=None, github=None, settings: Settings | None = None,
         from prcrew.worker.celery_app import app as celery_app
         session_factory = db.make_session_factory(engine)
 
-        def enqueue(kwargs: dict) -> None:
-            celery_app.send_task("prcrew.handle_pr_event", kwargs=kwargs)
+        def enqueue(task_name: str, kwargs: dict) -> None:
+            celery_app.send_task(task_name, kwargs=kwargs)
 
         webhook_router = make_webhook_router(settings, session_factory, enqueue,
                                              RecentDeliveries())
