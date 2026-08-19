@@ -15,6 +15,15 @@ from prgraph.parsers.jsts import parse_jsts
 from prgraph.parsers.python import parse_python
 from prgraph.walk import content_hash, walk_repo
 
+# Column widths in db.py. Unresolved JS/TS call targets store the raw callee
+# expression text, which real-world test files can push past 512 chars --
+# Postgres enforces VARCHAR limits (sqlite does not), so clamp before insert.
+_MAX_QUALIFIED = 512
+
+
+def _clamp(value: str, limit: int = _MAX_QUALIFIED) -> str:
+    return value if len(value) <= limit else value[:limit]
+
 
 @dataclass(frozen=True)
 class IndexStats:
@@ -204,8 +213,8 @@ def index_repo(
                     Symbol(
                         repo_id=repo_id,
                         file_id=file_row.id,
-                        name=d.name,
-                        qualified_name=d.qualified_name,
+                        name=_clamp(d.name, 256),
+                        qualified_name=_clamp(d.qualified_name),
                         kind=d.kind,
                         start_line=d.start_line,
                         end_line=d.end_line,
@@ -250,7 +259,7 @@ def index_repo(
                         repo_id=repo_id,
                         src_symbol_id=module_symbol_id,
                         dst_symbol_id=_resolve_import_dst(imp, by_qualified),
-                        dst_qualified_name=imp.target_qualified,
+                        dst_qualified_name=_clamp(imp.target_qualified),
                         kind="imports",
                     )
                 )
@@ -267,7 +276,7 @@ def index_repo(
                         repo_id=repo_id,
                         src_symbol_id=src_id,
                         dst_symbol_id=dst_id,
-                        dst_qualified_name=dst_qualified_name,
+                        dst_qualified_name=_clamp(dst_qualified_name),
                         kind="calls",
                     )
                 )
