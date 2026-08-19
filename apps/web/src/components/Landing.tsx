@@ -125,19 +125,19 @@ const STEPS = [
     n: "1",
     title: "Install the app on your repos",
     body: "One click on GitHub, pick the repositories. No CI config, no YAML, no webhooks to set up — the app brings its own.",
-    result: "Result: the bot is watching for pull requests.",
+    result: "the bot is watching for pull requests",
   },
   {
     n: "2",
     title: "Open a pull request as normal",
     body: "The bot clones your branch, indexes the repo into a code graph, and runs a crew of five agents: intent (with repo-exploration tools), correctness, tests, security, and an adversarial verifier.",
-    result: "Result: a pending check appears, then completes in about a minute.",
+    result: "a pending check appears, then completes in about a minute",
   },
   {
     n: "3",
     title: "Read the verdict",
     body: "The review leads with the intent check, pins divergences to changed lines, collapses the full crew report, and ends with exactly what it cost.",
-    result: "Result: you know whether the PR does what it says before you read the diff.",
+    result: "you know whether the PR does what it says before you read the diff",
   },
 ];
 
@@ -145,16 +145,20 @@ export function InstallSteps() {
   return (
     <section>
       <p className="eyebrow">Install in three steps</p>
-      <div className="mt-4 grid gap-4 md:grid-cols-3">
+      <ol className="steps mt-6">
         {STEPS.map((s) => (
-          <div key={s.n} className="panel step-card">
-            <div className="step-number">{s.n}</div>
-            <h3 className="card-title mt-2">{s.title}</h3>
-            <p className="mt-2 text-sm text-secondary">{s.body}</p>
-            <p className="mt-3 text-xs step-result">{s.result}</p>
-          </div>
+          <li key={s.n} className="step">
+            <div className="step-marker">{s.n}</div>
+            <div className="step-body">
+              <h3 className="step-title">{s.title}</h3>
+              <p className="mt-1.5 text-sm text-secondary">{s.body}</p>
+              <p className="step-result">
+                <span aria-hidden="true">→</span> {s.result}
+              </p>
+            </div>
+          </li>
         ))}
-      </div>
+      </ol>
     </section>
   );
 }
@@ -182,11 +186,12 @@ export function HowItWorks() {
   return (
     <section id="how">
       <p className="eyebrow">How it works</p>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {PIPELINE.map((p) => (
-          <div key={p.title} className="panel step-card">
-            <h3 className="card-title">{p.title}</h3>
-            <p className="mt-2 text-sm text-secondary">{p.body}</p>
+      <div className="pipeline mt-6 grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
+        {PIPELINE.map((p, i) => (
+          <div key={p.title} className="pipeline-stage">
+            <p className="stage-index">{String(i + 1).padStart(2, "0")}</p>
+            <h3 className="stage-title mt-2">{p.title}</h3>
+            <p className="mt-1.5 text-sm text-secondary">{p.body}</p>
           </div>
         ))}
       </div>
