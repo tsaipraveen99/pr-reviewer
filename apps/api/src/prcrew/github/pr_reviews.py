@@ -54,7 +54,7 @@ def compose_body(intent_confirmed: list[VerifiedFinding],
     # The synthesizer's markdown must keep its formatting, so it is NOT run
     # through _safe -- but a planted closing tag (a PR can steer what the
     # model writes) would pop our collapse block. Neutralize just that.
-    review_md = _DETAILS_CLOSE.sub("&lt;/details", review_md)
+    review_md = _DETAILS_CLOSE.sub(lambda m: "&lt;" + m.group(0)[1:], review_md)
     return (f"{verdict}{extra}\n\n<details><summary>Full crew review</summary>\n\n"
             f"{review_md}\n\n</details>{footer}")
 
