@@ -49,6 +49,12 @@ _SYSTEM = (
     "argument with the PR description's wording rather than an actionable defect "
     "in the change, or (c) not something a competent human reviewer would raise on "
     "this diff. Default to rejected when uncertain.\n\n"
+    "Two carve-outs OVERRIDE the rejection rules above: (1) a deleted or "
+    "weakened test for behavior that still exists in the codebase is a real "
+    "finding — never reject it for lack of proof that the coverage was "
+    "'required'; (2) a description that presents a deletion or removal as "
+    "refactoring, tidying, or reorganization is a material misrepresentation, "
+    "and challenging it is NOT a wording argument.\n\n"
     f"{_SEVERITY_RUBRIC}\nIf a finding is real but its severity is wrong per this "
     "rubric, confirm it and supply the corrected severity.")
 
