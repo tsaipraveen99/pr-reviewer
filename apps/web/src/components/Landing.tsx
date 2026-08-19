@@ -18,6 +18,25 @@ function goTo(id: string) {
   };
 }
 
+function InkWord({ children, delay = 0 }: { children: string; delay?: number }) {
+  return (
+    <span className="ink-word">
+      <em>{children}</em>
+      <svg
+        className="ink-stroke"
+        viewBox="0 0 100 12"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <path
+          d="M2 8 C 20 4, 34 10, 52 7 S 84 4, 98 7"
+          style={{ animationDelay: `${delay}s` }}
+        />
+      </svg>
+    </span>
+  );
+}
+
 export function TopNav() {
   return (
     <nav className="top-nav">
@@ -52,7 +71,8 @@ export function Hero() {
     <section id="github-app" className="pt-4">
       <p className="eyebrow">GitHub App</p>
       <h1 className="hero-title mt-2">
-        Reviews that check what your PR <em>claims</em> against what it <em>does</em>.
+        Reviews that check what your PR <InkWord delay={0.4}>claims</InkWord> against
+        what it <InkWord delay={0.9}>does</InkWord>.
       </h1>
       <p className="hero-sub mt-3">
         pr-reviewer installs on your repositories and reviews every pull request with
@@ -150,7 +170,10 @@ export function InstallSteps() {
       <p className="eyebrow">Install in three steps</p>
       <ol className="steps mt-6">
         {STEPS.map((s) => (
-          <li key={s.n} className="step">
+          <li key={s.n} className="step" data-reveal>
+            <span className="step-ghost" aria-hidden="true">
+              {s.n}
+            </span>
             <div className="step-marker">{s.n}</div>
             <div className="step-body">
               <h3 className="step-title">{s.title}</h3>
@@ -170,18 +193,22 @@ const PIPELINE = [
   {
     title: "Code graph",
     body: "A tree-sitter indexer stores every function, class, and call/import edge in Postgres, incrementally per push.",
+    snippet: "$ prgraph index .\n737 symbols \u00b7 4,352 edges",
   },
   {
     title: "Context slice",
     body: "Changed symbols plus their callers, callees, and importers ride along in every agent's prompt.",
+    snippet: "[changed] report.monthly_total\n[caller]  cli.main",
   },
   {
     title: "Intent tool loop",
     body: "The intent agent queries graph neighbors, reads files, and greps the clone — read-only, capped, budgeted.",
+    snippet: "\u2192 graph_neighbors(\"load_expenses\")\ncallers: total_by_category \u2026",
   },
   {
     title: "Adversarial verifier",
     body: "A second model cross-examines every finding and rejects anything unsupported before it reaches your PR.",
+    snippet: "finding #3 \u2192 rejected\n\"evidence not in the diff\"",
   },
 ];
 
@@ -191,10 +218,13 @@ export function HowItWorks() {
       <p className="eyebrow">How it works</p>
       <div className="pipeline mt-6 grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
         {PIPELINE.map((p, i) => (
-          <div key={p.title} className="pipeline-stage">
+          <div key={p.title} className="pipeline-stage" data-reveal style={{ transitionDelay: `${i * 90}ms` }}>
             <p className="stage-index">{String(i + 1).padStart(2, "0")}</p>
             <h3 className="stage-title mt-2">{p.title}</h3>
             <p className="mt-1.5 text-sm text-secondary">{p.body}</p>
+            <div className="stage-snippet">
+              <pre>{p.snippet}</pre>
+            </div>
           </div>
         ))}
       </div>

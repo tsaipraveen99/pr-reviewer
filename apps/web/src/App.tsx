@@ -4,10 +4,12 @@ import { Hero, HowItWorks, InstallSteps, TopNav, WhatYouGet } from "./components
 import { PRForm } from "./components/PRForm";
 import { ReviewPane } from "./components/ReviewPane";
 import { ShowcaseGallery } from "./components/ShowcaseGallery";
+import { useReveal } from "./hooks/useReveal";
 import { useReviewRun } from "./hooks/useReviewRun";
 
 function App() {
   const { view, running, start, replay, runId, prUrl, loadFromHash } = useReviewRun();
+  useReveal();
 
   // A `#r=<id>` hash is a shareable permalink to a finished run; load it
   // once on mount and rebuild the board from its stored events.
