@@ -64,7 +64,7 @@ export function Hero() {
         <a href="#demo" onClick={goTo("demo")} className="mac-button-secondary inline-block">
           Try the live demo
         </a>
-        <span className="text-xs text-secondary">Currently in private preview.</span>
+        <span className="text-xs text-secondary">Public preview: reviews activate per installation while bring-your-own-key rolls out.</span>
       </div>
     </section>
   );
