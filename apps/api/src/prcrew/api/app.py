@@ -12,8 +12,10 @@ def client_ip(request: Request) -> str:
     """Rate-limit key that survives a trusted edge proxy (e.g. Railway).
 
     The RIGHTMOST X-Forwarded-For entry is the one appended by the trusted
-    edge; entries further left are client-spoofable. Without the header,
-    fall back to the socket peer address.
+    edge; entries further left are client-spoofable, so they are never used
+    as the key. Without the header, fall back to the socket peer address;
+    if there is no peer either (unit-test transports), use a loopback
+    placeholder so the limiter still has a stable bucket.
     """
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
