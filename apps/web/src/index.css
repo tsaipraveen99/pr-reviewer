@@ -582,3 +582,58 @@ div[id] {
   letter-spacing: -0.01em;
   color: var(--text);
 }
+
+/* Screenshot stack: tilted, overlapping, focus-on-hover evidence photos.
+   Hover-gated: touch devices get the flat readable layout. */
+
+@media (hover: hover) and (min-width: 768px) {
+  .shot-stack {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    padding: 12px 0 8px;
+  }
+  .shot-stack .shot-figure {
+    flex: 1 1 0;
+    min-width: 0;
+    position: relative;
+    z-index: 1;
+  }
+  .shot-stack .shot-figure:last-child {
+    margin-left: -56px;
+    margin-top: 26px;
+  }
+  .shot-stack .shot-frame {
+    transform: rotate(-2.2deg);
+    filter: blur(2.5px) saturate(0.9);
+    opacity: 0.85;
+    transition:
+      transform 0.28s cubic-bezier(0.2, 0.7, 0.2, 1),
+      filter 0.28s ease,
+      opacity 0.28s ease,
+      box-shadow 0.28s ease;
+  }
+  .shot-stack .shot-figure:last-child .shot-frame {
+    transform: rotate(1.7deg);
+  }
+  .shot-stack .shot-figure:hover,
+  .shot-stack .shot-figure:focus-within {
+    z-index: 5;
+  }
+  .shot-stack .shot-figure:hover .shot-frame,
+  .shot-stack .shot-figure:focus-within .shot-frame {
+    transform: rotate(0deg) scale(1.02);
+    filter: none;
+    opacity: 1;
+    box-shadow: 0 18px 44px rgb(0 0 0 / 0.35);
+  }
+  .shot-stack .shot-caption {
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    padding-right: 24px;
+  }
+  .shot-stack .shot-figure:hover .shot-caption,
+  .shot-stack .shot-figure:focus-within .shot-caption {
+    opacity: 1;
+  }
+}

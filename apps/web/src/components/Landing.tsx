@@ -78,7 +78,7 @@ export function WhatYouGet() {
         Real reviews from a staged test: one PR whose description promised validation and
         tests while the diff changed a help string, and one honest PR.
       </p>
-      <div className="mt-4 grid gap-6 md:grid-cols-2">
+      <div className="shot-stack mt-4 grid gap-6 md:grid-cols-2">
         <figure className="shot-figure">
           <div className="shot-frame">
             <img
