@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from celery.exceptions import Retry
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 
 from prcrew.worker.celery_app import app
 
@@ -132,6 +132,16 @@ def handle_pr_event(self, installation_id: int, repo_id: int, repo_full_name: st
                                  Review.status != "failed")).scalar_one_or_none()
         if existing is not None:
             return "duplicate"
+        # A prior "failed" row for this exact (repo, pr, sha) is terminal and
+        # carries no permalink/check-run value once a fresh delivery is
+        # retrying the same commit; purge it so the inserts below (made only
+        # after a successful clone) can never collide with the unique index
+        # on (repo_id, pr_number, head_sha).
+        session.execute(
+            delete(Review).where(Review.repo_id == repo_id,
+                                 Review.pr_number == pr_number,
+                                 Review.head_sha == head_sha,
+                                 Review.status == "failed"))
         # A newer push supersedes any still-running review of this PR.
         session.execute(
             update(Review).where(Review.repo_id == repo_id,
@@ -158,15 +168,13 @@ def handle_pr_event(self, installation_id: int, repo_id: int, repo_full_name: st
             session.commit()
         return "ineligible"
 
-    check_run_id = deps.checks.create(installation_id, owner, repo, head_sha)
-    review_id = uuid.uuid4().hex
-    with deps.session_factory() as session:
-        session.add(Review(id=review_id, source="github", repo_id=repo_id,
-                           pr_number=pr_number, head_sha=head_sha,
-                           pr_url=f"https://github.com/{repo_full_name}/pull/{pr_number}",
-                           status="running", check_run_id=check_run_id))
-        session.commit()
-
+    # check_run_id/review_id are created only once the clone has actually
+    # succeeded (below): creating them earlier means a CloneError -> retry
+    # redelivery finds its own "running" row via the idempotency check above
+    # and returns "duplicate" forever, leaving the check run stuck
+    # in_progress and never actually retrying the clone.
+    check_run_id = None
+    review_id = None
     try:
         clone_root = Path(settings.clones_dir) / str(repo_id)
         token = deps.tokens.token(installation_id)
@@ -175,6 +183,16 @@ def handle_pr_event(self, installation_id: int, repo_id: int, repo_full_name: st
             ensure_clone(clone_url, clone_root, pr_number, head_sha, token=token)
         except CloneError as e:
             raise self.retry(exc=e, countdown=30) from e
+
+        check_run_id = deps.checks.create(installation_id, owner, repo, head_sha)
+        review_id = uuid.uuid4().hex
+        with deps.session_factory() as session:
+            session.add(Review(id=review_id, source="github", repo_id=repo_id,
+                               pr_number=pr_number, head_sha=head_sha,
+                               pr_url=f"https://github.com/{repo_full_name}/pull/{pr_number}",
+                               status="running", check_run_id=check_run_id))
+            session.commit()
+
         ensure_index(deps.session_factory, repo_id, clone_root, head_sha)
         if _superseded(deps.session_factory, review_id):
             return _abort_superseded(deps, installation_id, owner, repo,
@@ -223,19 +241,26 @@ def handle_pr_event(self, installation_id: int, repo_id: int, repo_full_name: st
         raise
     except Exception:
         logger.exception("handle_pr_event failed for repo %s pr %s", repo_id, pr_number)
-        try:
-            with deps.session_factory() as session:
-                row = session.get(Review, review_id)
-                if row is not None:
-                    row.status = "failed"
-                    session.commit()
-        except Exception:
-            # Best-effort like _complete_quietly: a DB error while recording
-            # the failure must not mask the original failure or crash the task.
-            logger.exception("failed to mark review %s as failed", review_id)
-        _complete_quietly(deps.checks, installation_id, owner, repo, check_run_id,
-                          "neutral", "pr-reviewer hit an internal error",
-                          "Something went wrong on our side; this PR was not reviewed.")
+        # Both guards below are needed because check_run_id/review_id are
+        # now only set after a successful clone (see above): a failure
+        # before that point (e.g. a clone that exhausts its retries) has
+        # neither a check run nor a review row to update.
+        if review_id is not None:
+            try:
+                with deps.session_factory() as session:
+                    row = session.get(Review, review_id)
+                    if row is not None:
+                        row.status = "failed"
+                        session.commit()
+            except Exception:
+                # Best-effort like _complete_quietly: a DB error while
+                # recording the failure must not mask the original failure
+                # or crash the task.
+                logger.exception("failed to mark review %s as failed", review_id)
+        if check_run_id is not None:
+            _complete_quietly(deps.checks, installation_id, owner, repo, check_run_id,
+                              "neutral", "pr-reviewer hit an internal error",
+                              "Something went wrong on our side; this PR was not reviewed.")
         return "failed"
 
 

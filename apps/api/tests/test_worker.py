@@ -378,7 +378,16 @@ def test_ineligible_daily_cap(worker_env, tmp_path, monkeypatch):
     assert "cap" in summary.lower()
 
 
-def test_clone_failure_retries_and_never_completes(worker_env, tmp_path, monkeypatch):
+def test_clone_failure_retries_genuinely_and_final_failure_creates_nothing(
+        worker_env, tmp_path, monkeypatch):
+    # Regression for a production defect found in round 1: check_run_id and
+    # review_id used to be created *before* the clone was attempted, so a
+    # CloneError -> self.retry() redelivery hit its own "running" row via
+    # the idempotency check and returned "duplicate" forever -- the check
+    # run sat in_progress forever and the clone was never actually retried.
+    # Now check_run_id/review_id are only created after ensure_clone
+    # succeeds, so every redelivery (up to max_retries=2, i.e. 3 attempts
+    # total) genuinely re-attempts the clone from a clean slate.
     factory, checks, _settings, _mp = worker_env
     origin = make_origin(tmp_path)
     kwargs = kwargs_for(origin)
@@ -389,22 +398,59 @@ def test_clone_failure_retries_and_never_completes(worker_env, tmp_path, monkeyp
     import prcrew.github.pr_reviews as pr_reviews_mod
     monkeypatch.setattr(pr_reviews_mod, "post_review", never_called("post_review"))
 
-    # self.retry() raises celery.exceptions.Retry; in task_always_eager mode
-    # that recursively re-runs the whole task synchronously (see
-    # celery.app.task.Task.apply). Because the Review row created on the
-    # first attempt is already persisted with status "running" before the
-    # clone is attempted, the SECOND full run trips the duplicate-review
-    # guard at the very top of the task before ever reaching ensure_clone
-    # again -- so eager .get() resolves to "duplicate" rather than raising.
-    # What matters for this test either way: the retry path (not the
-    # generic failure handler) was taken, and the row never reaches "done".
+    # Empirically verified (not assumed) in eager mode: self.retry(exc=e,
+    # ...) raises celery.exceptions.Retry while retries remain, which
+    # Task.apply() catches and recursively re-invokes the whole task from
+    # scratch (celery.app.task.Task.apply / Task.retry source). Once
+    # max_retries is exhausted, retry()'s own `raise_with_context(exc)`
+    # re-raises the *original* CloneError (since exc=e was supplied) from
+    # inside our nested `except CloneError` block -- so it is caught by
+    # this task's own `except Exception:` handler before it ever escapes to
+    # Celery's outer machinery (no MaxRetriesExceededError surfaces here).
+    # Because check_run_id/review_id are still None at that point (the
+    # clone never once succeeded), the guarded handler creates neither a
+    # check run nor a review row: nothing is left stranded in_progress.
     outcome = handle_pr_event.delay(**kwargs).get()
 
-    assert outcome == "duplicate"
-    assert len(checks.created) == 1  # no second check run was created
+    assert outcome == "failed"
+    assert checks.created == []
     with factory() as s:
-        review = s.execute(select(Review)).scalar_one()
-    assert review.status == "running"  # never marked "failed" or "done"
+        assert s.execute(select(Review)).scalars().all() == []
+
+
+def test_redelivery_after_prior_failed_row_completes_cleanly(worker_env, tmp_path, monkeypatch):
+    # Regression for the second round-1 defect: the idempotency SELECT
+    # excludes "failed" rows (so a retry-after-failure isn't treated as a
+    # duplicate), but the review-row INSERT used to be unconditional -- a
+    # redelivery after a prior "failed" row for the same (repo_id,
+    # pr_number, head_sha) crashed uncaught on uq_reviews_repo_pr_sha. The
+    # purge (delete stale "failed" rows for this key) right after the
+    # idempotency check makes the later insert safe by construction.
+    factory, _checks, _settings, _mp = worker_env
+    origin = make_origin(tmp_path)
+    kwargs = kwargs_for(origin)
+
+    with factory() as s:
+        s.add(Review(id="prior-failed", source="github", repo_id=999, pr_number=1,
+                     head_sha=kwargs["head_sha"],
+                     pr_url="https://github.com/x/y/pull/1", status="failed"))
+        s.commit()
+
+    install_fetch_pr(monkeypatch, make_ctx())
+    _route_clone_to_local_origin(monkeypatch, origin)
+    result, events = two_findings_result()
+    install_run_crew(monkeypatch, result=result, events=events)
+    install_post_review(monkeypatch, [])
+
+    outcome = handle_pr_event.delay(**kwargs).get()
+
+    assert outcome == "completed"  # not an uncaught IntegrityError
+    with factory() as s:
+        rows = s.execute(
+            select(Review).where(Review.repo_id == 999, Review.pr_number == 1,
+                                 Review.head_sha == kwargs["head_sha"])).scalars().all()
+    assert len(rows) == 1  # the stale "failed" row was purged, not duplicated
+    assert rows[0].status == "done"
 
 
 def test_crew_failure_returns_failed_even_if_check_completion_also_raises(
